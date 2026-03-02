@@ -7,6 +7,7 @@ import com.newpillar.game.PlayerData;
 import com.newpillar.game.SpecialItemManager;
 import com.newpillar.game.VanillaItemManager;
 import com.newpillar.game.VanillaItemEffectManager;
+import com.newpillar.utils.DebugLogger;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class PlayerListener implements Listener {
    private final ItemEffectManager itemEffectManager;
    private final VanillaItemManager vanillaItemManager;
    private final VanillaItemEffectManager vanillaItemEffectManager;
+   private final DebugLogger debugLogger;
    
    // 火箭靴二段跳跟踪
    private final Map<UUID, Boolean> playerOnGround = new HashMap<>();
@@ -70,6 +72,7 @@ public class PlayerListener implements Listener {
       this.itemEffectManager = itemEffectManager;
       this.vanillaItemManager = vanillaItemManager;
       this.vanillaItemEffectManager = vanillaItemEffectManager;
+      this.debugLogger = plugin.getDebugLogger();
    }
 
    @EventHandler
@@ -102,7 +105,7 @@ public class PlayerListener implements Listener {
                deathLocation.setY(200); // 地图上空
             }
             data.setDeathLocation(deathLocation);
-            plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 死亡位置已保存: " + deathLocation);
+            debugLogger.debug("玩家 " + player.getName() + " 死亡位置已保存: " + deathLocation);
 
             this.gameManager.playerOut(player);
             this.gameManager.broadcastMessage("§c" + player.getName() + " §7被淘汰了！剩余玩家: §a" + this.gameManager.getAlivePlayers().size());
@@ -112,7 +115,7 @@ public class PlayerListener implements Listener {
 
             // 立即设置玩家为旁观模式，防止玩家继续掉落
             player.setGameMode(GameMode.SPECTATOR);
-            plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 死亡后立即设置为旁观模式");
+            debugLogger.debug("玩家 " + player.getName() + " 死亡后立即设置为旁观模式");
 
             // 发送出局Title提示
             player.sendTitle("§c§l您已出局", "§7已进入观察者模式", 10, 70, 20);
@@ -125,7 +128,7 @@ public class PlayerListener implements Listener {
                Player nearestPlayer = this.gameManager.getNearestAlivePlayer(player);
                if (nearestPlayer != null) {
                   teleportLocation = nearestPlayer.getLocation();
-                  plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 虚空死亡，传送到最近的玩家: " + nearestPlayer.getName());
+                  debugLogger.debug("玩家 " + player.getName() + " 虚空死亡，传送到最近的玩家: " + nearestPlayer.getName());
                }
             }
             
@@ -133,7 +136,7 @@ public class PlayerListener implements Listener {
             final Location finalTeleportLocation = teleportLocation;
             player.getScheduler().runDelayed(this.plugin, (task) -> {
                if (player.isOnline()) {
-                  plugin.getLogger().info("[调试] 延迟10tick: 传送玩家 " + player.getName() + " 到: " + finalTeleportLocation);
+                  debugLogger.debug("延迟10tick: 传送玩家 " + player.getName() + " 到: " + finalTeleportLocation);
                   player.setGameMode(GameMode.SPECTATOR);
                   player.teleportAsync(finalTeleportLocation);
                }
@@ -142,7 +145,7 @@ public class PlayerListener implements Listener {
             // 再次延迟传送确保成功
             player.getScheduler().runDelayed(this.plugin, (task) -> {
                if (player.isOnline()) {
-                  plugin.getLogger().info("[调试] 延迟20tick: 再次传送玩家 " + player.getName());
+                  debugLogger.debug("延迟20tick: 再次传送玩家 " + player.getName());
                   player.setGameMode(GameMode.SPECTATOR);
                   player.teleportAsync(finalTeleportLocation);
                }
@@ -155,23 +158,23 @@ public class PlayerListener implements Listener {
    public void onPlayerRespawn(PlayerRespawnEvent event) {
       Player player = event.getPlayer();
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
-      plugin.getLogger().info("[调试] onPlayerRespawn 被调用: " + player.getName() + ", data=" + (data != null));
+      debugLogger.debug("onPlayerRespawn 被调用: " + player.getName() + ", data=" + (data != null));
       if (data != null) {
          // 获取死亡位置
          final Location deathLocation = data.getDeathLocation();
          GameManager.PlayerState state = data.getState();
-         plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 状态: " + state + ", 死亡位置: " + deathLocation);
+         debugLogger.debug("玩家 " + player.getName() + " 状态: " + state + ", 死亡位置: " + deathLocation);
          
          // 如果玩家是观察者状态（出局后转为观察者）且有死亡位置记录
          if (state == GameManager.PlayerState.SPECTATOR && deathLocation != null) {
-            plugin.getLogger().info("[调试] 设置重生位置为死亡位置: " + deathLocation);
+            debugLogger.debug("设置重生位置为死亡位置: " + deathLocation);
             // 设置重生位置为死亡位置
             event.setRespawnLocation(deathLocation);
             
             // 使用玩家的 EntityScheduler 确保在正确的线程执行
             player.getScheduler().execute(this.plugin, () -> {
                if (player.isOnline()) {
-                  plugin.getLogger().info("[调试] 立即执行: 设置 " + player.getName() + " 为旁观模式并传送");
+                  debugLogger.debug("立即执行: 设置 " + player.getName() + " 为旁观模式并传送");
                   // 设置为旁观模式
                   player.setGameMode(GameMode.SPECTATOR);
                   // 传送到死亡位置（使用 teleportAsync）
@@ -182,7 +185,7 @@ public class PlayerListener implements Listener {
             // 延迟再次传送确保成功
             player.getScheduler().runDelayed(this.plugin, (task) -> {
                if (player.isOnline()) {
-                  plugin.getLogger().info("[调试] 延迟5tick: 再次传送 " + player.getName());
+                  debugLogger.debug("延迟5tick: 再次传送 " + player.getName());
                   player.setGameMode(GameMode.SPECTATOR);
                   player.teleportAsync(deathLocation);
                }
@@ -190,13 +193,13 @@ public class PlayerListener implements Listener {
             
             player.getScheduler().runDelayed(this.plugin, (task) -> {
                if (player.isOnline()) {
-                  plugin.getLogger().info("[调试] 延迟10tick: 最终传送 " + player.getName());
+                  debugLogger.debug("延迟10tick: 最终传送 " + player.getName());
                   player.setGameMode(GameMode.SPECTATOR);
                   player.teleportAsync(deathLocation);
                }
             }, () -> {}, 10);
          } else {
-            plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 不是观察者或没有死亡位置，正常重生");
+            debugLogger.debug("玩家 " + player.getName() + " 不是观察者或没有死亡位置，正常重生");
          }
       }
    }
