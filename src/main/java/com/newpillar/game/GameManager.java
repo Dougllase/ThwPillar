@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
@@ -66,8 +67,8 @@ public class GameManager {
    private ScheduledTask borderCountdownTask = null;
    
    // 规则投票系统
-   private List<RuleType> votingRules = new ArrayList<>();
-   private Map<UUID, RuleType> playerVotes = new HashMap<>();
+   private List<RuleType> votingRules = new CopyOnWriteArrayList<>();
+   private Map<UUID, RuleType> playerVotes = new ConcurrentHashMap<>();
    private boolean votingLocked = false;
    private RuleType selectedRule = RuleType.NONE;
    
@@ -1095,7 +1096,14 @@ public class GameManager {
       this.readyPlayers.remove(uuid);
       this.alivePlayers.remove(uuid);
       this.spectators.remove(uuid);
+      
+      // 清理玩家数据防止内存泄漏
+      PlayerData data = this.playerDataMap.get(uuid);
+      if (data != null) {
+         data.cleanup();
+      }
       this.playerDataMap.remove(uuid);
+      
       if (this.gameStatus == GameManager.GameStatus.PLAYING && this.alivePlayers.size() <= 1) {
          this.endGame();
       }

@@ -138,24 +138,24 @@ public class StatisticsSystem {
         DatabaseManager.PlayerStatisticsData data = db.loadStatistics(uuid);
         PlayerStatistics stats = playerStats.computeIfAbsent(uuid, k -> new PlayerStatistics(uuid));
         
-        stats.totalKills = data.totalKills();
-        stats.totalDeaths = data.totalDeaths();
-        stats.totalWins = data.totalWins();
-        stats.totalGamesPlayed = data.totalGamesPlayed();
-        stats.damageDealt = data.damageDealt();
-        stats.damageTaken = data.damageTaken();
-        stats.blocksPlaced = data.blocksPlaced();
-        stats.blocksBroken = data.blocksBroken();
-        stats.itemsLooted = data.itemsLooted();
+        stats.totalKills = data.getTotalKills();
+        stats.totalDeaths = data.getTotalDeaths();
+        stats.totalWins = data.getTotalWins();
+        stats.totalGamesPlayed = data.getTotalGamesPlayed();
+        stats.damageDealt = data.getDamageDealt();
+        stats.damageTaken = data.getDamageTaken();
+        stats.blocksPlaced = data.getBlocksPlaced();
+        stats.blocksBroken = data.getBlocksBroken();
+        stats.itemsLooted = data.getItemsLooted();
         
         // 加载新增统计项
-        stats.highestWinStreak = data.highestWinStreak();
-        stats.currentWinStreak = data.currentWinStreak();
-        stats.totalDamageDealt = data.totalDamageDealt();
-        stats.totalDamageTaken = data.totalDamageTaken();
-        stats.totalBlocksBroken = data.totalBlocksBroken();
-        stats.totalBlocksPlaced = data.totalBlocksPlaced();
-        stats.totalItemsLooted = data.totalItemsLooted();
+        stats.highestWinStreak = data.getHighestWinStreak();
+        stats.currentWinStreak = data.getCurrentWinStreak();
+        stats.totalDamageDealt = data.getTotalDamageDealt();
+        stats.totalDamageTaken = data.getTotalDamageTaken();
+        stats.totalBlocksBroken = data.getTotalBlocksBroken();
+        stats.totalBlocksPlaced = data.getTotalBlocksPlaced();
+        stats.totalItemsLooted = data.getTotalItemsLooted();
         
         plugin.getLogger().info("已从数据库加载玩家 " + uuid + " 的统计数据");
     }
@@ -269,12 +269,27 @@ public class StatisticsSystem {
             for (Map.Entry<UUID, PlayerStatistics> entry : playerStats.entrySet()) {
                 UUID uuid = entry.getKey();
                 PlayerStatistics stats = entry.getValue();
-                db.saveStatistics(uuid, stats.totalKills, stats.totalDeaths, stats.totalWins,
-                    stats.totalGamesPlayed, stats.damageDealt, stats.damageTaken,
-                    stats.blocksPlaced, stats.blocksBroken, stats.itemsLooted,
-                    stats.highestWinStreak, stats.currentWinStreak, stats.totalDamageDealt,
-                    stats.totalDamageTaken, stats.totalBlocksBroken, stats.totalBlocksPlaced,
-                    stats.totalItemsLooted);
+                
+                // 创建PlayerStatisticsData对象
+                DatabaseManager.PlayerStatisticsData data = new DatabaseManager.PlayerStatisticsData();
+                data.setTotalKills(stats.totalKills);
+                data.setTotalDeaths(stats.totalDeaths);
+                data.setTotalWins(stats.totalWins);
+                data.setTotalGamesPlayed(stats.totalGamesPlayed);
+                data.setDamageDealt(stats.damageDealt);
+                data.setDamageTaken(stats.damageTaken);
+                data.setBlocksPlaced(stats.blocksPlaced);
+                data.setBlocksBroken(stats.blocksBroken);
+                data.setItemsLooted(stats.itemsLooted);
+                data.setHighestWinStreak(stats.highestWinStreak);
+                data.setCurrentWinStreak(stats.currentWinStreak);
+                data.setTotalDamageDealt(stats.totalDamageDealt);
+                data.setTotalDamageTaken(stats.totalDamageTaken);
+                data.setTotalBlocksBroken(stats.totalBlocksBroken);
+                data.setTotalBlocksPlaced(stats.totalBlocksPlaced);
+                data.setTotalItemsLooted(stats.totalItemsLooted);
+                
+                db.saveStatistics(uuid, data);
             }
         }
 
@@ -316,12 +331,26 @@ public class StatisticsSystem {
 
         DatabaseManager db = plugin.getDatabaseManager();
         if (db != null) {
-            db.saveStatistics(uuid, stats.totalKills, stats.totalDeaths, stats.totalWins,
-                stats.totalGamesPlayed, stats.damageDealt, stats.damageTaken,
-                stats.blocksPlaced, stats.blocksBroken, stats.itemsLooted,
-                stats.highestWinStreak, stats.currentWinStreak, stats.totalDamageDealt,
-                stats.totalDamageTaken, stats.totalBlocksBroken, stats.totalBlocksPlaced,
-                stats.totalItemsLooted);
+            // 创建PlayerStatisticsData对象
+            DatabaseManager.PlayerStatisticsData data = new DatabaseManager.PlayerStatisticsData();
+            data.setTotalKills(stats.totalKills);
+            data.setTotalDeaths(stats.totalDeaths);
+            data.setTotalWins(stats.totalWins);
+            data.setTotalGamesPlayed(stats.totalGamesPlayed);
+            data.setDamageDealt(stats.damageDealt);
+            data.setDamageTaken(stats.damageTaken);
+            data.setBlocksPlaced(stats.blocksPlaced);
+            data.setBlocksBroken(stats.blocksBroken);
+            data.setItemsLooted(stats.itemsLooted);
+            data.setHighestWinStreak(stats.highestWinStreak);
+            data.setCurrentWinStreak(stats.currentWinStreak);
+            data.setTotalDamageDealt(stats.totalDamageDealt);
+            data.setTotalDamageTaken(stats.totalDamageTaken);
+            data.setTotalBlocksBroken(stats.totalBlocksBroken);
+            data.setTotalBlocksPlaced(stats.totalBlocksPlaced);
+            data.setTotalItemsLooted(stats.totalItemsLooted);
+            
+            db.saveStatistics(uuid, data);
             plugin.getLogger().info("玩家 " + uuid + " 的统计信息已同步到数据库");
         }
 

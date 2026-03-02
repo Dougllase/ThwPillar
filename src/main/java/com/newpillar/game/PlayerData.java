@@ -26,7 +26,20 @@ public class PlayerData {
 
    public void reset() {
       this.deathCheck = 0;
+      // 清除deathLocation防止内存泄漏（Location包含World引用）
       this.deathLocation = null;
+   }
+   
+   /**
+    * 玩家退出时清理所有数据，防止内存泄漏
+    */
+   public void cleanup() {
+      this.deathLocation = null;
+      this.playerName = null;
+      this.state = GameManager.PlayerState.LOBBY;
+      this.gameId = 0;
+      this.playerNumber = 0;
+      this.deathCheck = 0;
    }
 
    public Location getDeathLocation() {
