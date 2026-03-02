@@ -1,0 +1,22 @@
+name: ThwNewPillar
+version: '${project.version}'
+main: com.newpillar.NewPillar
+api-version: '1.21'
+folia-supported: true
+author: Thw
+
+description: A fresh start of Lucky Pillar game based on data pack
+
+commands:
+  newpillar:
+    description: ThwNewPillar game commands
+    usage: /<command> [join|leave|start|stop|status]
+    aliases: [np]
+  vote:
+    description: Vote for game rules
+    usage: /vote <number>
+
+permissions:
+  newpillar.admin:
+    description: Admin permission for ThwNewPillar
+    default: op

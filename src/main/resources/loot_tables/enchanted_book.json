@@ -1,0 +1,10 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {"type": "item", "name": "ENCHANTED_BOOK", "weight": 1}
+      ]
+    }
+  ]
+}
