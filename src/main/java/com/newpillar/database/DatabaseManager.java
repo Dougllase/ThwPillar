@@ -171,8 +171,11 @@ public class DatabaseManager {
     }
 
     public Connection getConnection() {
+        if (connection == null) {
+            return null;
+        }
         try {
-            if (connection == null || connection.isClosed() || !connection.isValid(5)) {
+            if (connection.isClosed() || !connection.isValid(5)) {
                 String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
                         host, port, database);
                 connection = DriverManager.getConnection(url, username, password);
