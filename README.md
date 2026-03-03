@@ -47,13 +47,13 @@ java -Xms2G -Xmx4G -jar folia-1.21.11.jar --nogui
 
 ### 1. 安装插件
 
-1. 下载插件JAR文件：`ThwNewPillar.jar`（或自行构建：`ThwNewPillar-1.1.4-SNAPSHOT.jar`）
+1. 下载插件JAR文件：`ThwNewPillar-1.1.4-SNAPSHOT.jar`
 2. 将JAR文件放入服务器的 `plugins/` 文件夹
 3. 启动服务器生成配置文件
 
 ### 2. 配置数据库
 
-编辑 `plugins/ThwNewPillar/config.yml`（首次启动后生成）：
+编辑 `plugins/ThwNewPillar/config.yml`：
 
 ```yaml
 # 数据库配置

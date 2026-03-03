@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
@@ -67,8 +66,8 @@ public class GameManager {
    private ScheduledTask borderCountdownTask = null;
    
    // 规则投票系统
-   private List<RuleType> votingRules = new CopyOnWriteArrayList<>();
-   private Map<UUID, RuleType> playerVotes = new ConcurrentHashMap<>();
+   private List<RuleType> votingRules = new ArrayList<>();
+   private Map<UUID, RuleType> playerVotes = new HashMap<>();
    private boolean votingLocked = false;
    private RuleType selectedRule = RuleType.NONE;
    
@@ -639,21 +638,21 @@ public class GameManager {
       if (!this.alivePlayers.isEmpty()) {
          UUID winnerUuid = this.alivePlayers.iterator().next();
          winner = Bukkit.getPlayer(winnerUuid);
-         this.debugLogger.debug("endGame - 胜利者UUID: " + winnerUuid + ", 在线: " + (winner != null));
+         this.plugin.getLogger().info("[调试] endGame - 胜利者UUID: " + winnerUuid + ", 在线: " + (winner != null));
          if (winner != null) {
             winnerName = winner.getName();
             winnerLocation = winner.getLocation();
-            this.debugLogger.debug("endGame - 胜利者: " + winnerName + ", 位置: " + winnerLocation);
+            this.plugin.getLogger().info("[调试] endGame - 胜利者: " + winnerName + ", 位置: " + winnerLocation);
          } else {
             // 如果玩家不在线，尝试从 playerDataMap 获取名字
             PlayerData data = this.playerDataMap.get(winnerUuid);
             if (data != null && data.getPlayerName() != null) {
                winnerName = data.getPlayerName();
-               this.debugLogger.debug("endGame - 胜利者离线，从PlayerData获取名字: " + winnerName);
+               this.plugin.getLogger().info("[调试] endGame - 胜利者离线，从PlayerData获取名字: " + winnerName);
             }
          }
       } else {
-         this.debugLogger.debug("endGame - alivePlayers为空，无胜利者");
+         this.plugin.getLogger().info("[调试] endGame - alivePlayers为空，无胜利者");
       }
       
       // 获取淘汰王（本局击杀最多）
@@ -752,7 +751,7 @@ public class GameManager {
          String timeString = String.format("%02d:%02d", finalGameTimeMin, finalGameTimeSec);
          
          // 播报胜利者和淘汰王
-         this.debugLogger.debug("广播游戏结束消息 - 在线玩家数: " + Bukkit.getOnlinePlayers().size());
+         this.plugin.getLogger().info("[调试] 广播游戏结束消息 - 在线玩家数: " + Bukkit.getOnlinePlayers().size());
          String[] messages = {
             "",
             "§6§l═══════════════════════════",
@@ -773,7 +772,7 @@ public class GameManager {
             }
             msgCount++;
          }
-         this.debugLogger.debug("广播消息已发送给 " + msgCount + " 名玩家");
+         this.plugin.getLogger().info("[调试] 广播消息已发送给 " + msgCount + " 名玩家");
          
          // 向所有玩家发送Title
          String title = "§6§l玩家 " + finalWinnerName + " 胜利！";
@@ -783,9 +782,9 @@ public class GameManager {
          for (Player player : Bukkit.getOnlinePlayers()) {
             player.sendTitle(title, subtitle, 10, 100, 20);
             titleCount++;
-            this.debugLogger.debug("Title已发送给: " + player.getName());
+            this.plugin.getLogger().info("[调试] Title已发送给: " + player.getName());
          }
-         this.debugLogger.debug("Title发送完成，共发送给 " + titleCount + " 名玩家");
+         this.plugin.getLogger().info("[调试] Title发送完成，共发送给 " + titleCount + " 名玩家");
          
          // 记录胜利
          if (finalWinner != null) {
@@ -859,7 +858,7 @@ public class GameManager {
                
                // 游戏结束后，如果自动开始启用且在线玩家>=2，自动重新开始准备流程
                if (GameManager.this.autoStartEnabled && Bukkit.getOnlinePlayers().size() >= 2) {
-                  GameManager.this.debugLogger.debug("游戏结束，自动开始下一轮准备流程");
+                  GameManager.this.plugin.getLogger().info("[调试] 游戏结束，自动开始下一轮准备流程");
                   // 清除观察者集合，让中途加入的观察者也能参与下一局
                   for (UUID spectatorUuid : GameManager.this.spectators) {
                      Player spectator = Bukkit.getPlayer(spectatorUuid);
@@ -994,12 +993,12 @@ public class GameManager {
 
    public void playerJoin(Player player) {
       UUID uuid = player.getUniqueId();
-      this.debugLogger.debug("playerJoin 被调用: " + player.getName() + ", playerDataMap.containsKey=" + this.playerDataMap.containsKey(uuid) + ", gameStatus=" + this.gameStatus);
+      this.plugin.getLogger().info("[调试] playerJoin 被调用: " + player.getName() + ", playerDataMap.containsKey=" + this.playerDataMap.containsKey(uuid) + ", gameStatus=" + this.gameStatus);
       if (this.playerDataMap.containsKey(uuid)) {
-         this.debugLogger.debug("玩家已在游戏中，拒绝加入");
+         this.plugin.getLogger().info("[调试] 玩家已在游戏中，拒绝加入");
          player.sendMessage("§c你已经在游戏中了！");
       } else if (this.gameStatus == GameManager.GameStatus.PLAYING) {
-         this.debugLogger.debug("游戏进行中，以观察者身份加入");
+         this.plugin.getLogger().info("[调试] 游戏进行中，以观察者身份加入");
          // 游戏进行中，以观察者身份加入
          this.playerDataMap.put(uuid, new PlayerData(uuid));
          PlayerData data = this.playerDataMap.get(uuid);
@@ -1033,14 +1032,14 @@ public class GameManager {
          this.sidebarManager.showLobbySidebar();
          
          // 如果自动开始功能启用，自动将玩家标记为准备
-         this.debugLogger.debug("玩家 " + player.getName() + " 加入，autoStartEnabled=" + this.autoStartEnabled + ", gameStatus=" + this.gameStatus);
+         this.plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 加入，autoStartEnabled=" + this.autoStartEnabled + ", gameStatus=" + this.gameStatus);
          if (this.autoStartEnabled) {
             PlayerData data = this.playerDataMap.get(uuid);
-            this.debugLogger.debug("自动开始启用，PlayerData=" + (data != null ? "不为null" : "为null"));
+            this.plugin.getLogger().info("[调试] 自动开始启用，PlayerData=" + (data != null ? "不为null" : "为null"));
             if (data != null) {
                data.setState(GameManager.PlayerState.READY);
                this.readyPlayers.add(uuid);
-               this.debugLogger.debug("玩家 " + player.getName() + " 已自动准备，当前准备人数: " + this.readyPlayers.size());
+               this.plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 已自动准备，当前准备人数: " + this.readyPlayers.size());
                player.sendMessage("§a欢迎加入 NewPillar！你已自动准备！");
                player.sendMessage("§e当前准备人数: " + this.readyPlayers.size());
                
@@ -1070,11 +1069,11 @@ public class GameManager {
                }
                
                // 检查是否触发自动开始
-               this.debugLogger.debug("调用 checkAutoStart()");
+               this.plugin.getLogger().info("[调试] 调用 checkAutoStart()");
                this.checkAutoStart();
             }
          } else {
-            this.debugLogger.debug("自动开始未启用，显示准备提示");
+            this.plugin.getLogger().info("[调试] 自动开始未启用，显示准备提示");
             player.sendMessage("§a欢迎加入 NewPillar！使用 /np ready 准备游戏。");
          }
       }
@@ -1096,14 +1095,7 @@ public class GameManager {
       this.readyPlayers.remove(uuid);
       this.alivePlayers.remove(uuid);
       this.spectators.remove(uuid);
-      
-      // 清理玩家数据防止内存泄漏
-      PlayerData data = this.playerDataMap.get(uuid);
-      if (data != null) {
-         data.cleanup();
-      }
       this.playerDataMap.remove(uuid);
-      
       if (this.gameStatus == GameManager.GameStatus.PLAYING && this.alivePlayers.size() <= 1) {
          this.endGame();
       }
@@ -1132,14 +1124,14 @@ public class GameManager {
     * 无论自动开始是否启用，只要准备人数>=2就触发倒计时
     */
    private void checkAutoStart() {
-      this.debugLogger.debug("checkAutoStart() 被调用");
+      this.plugin.getLogger().info("[调试] checkAutoStart() 被调用");
       
       int readyCount = this.readyPlayers.size();
-      this.debugLogger.debug("准备人数: " + readyCount + ", autoStartActive=" + this.autoStartActive + ", autoStartEnabled=" + this.autoStartEnabled);
+      this.plugin.getLogger().info("[调试] 准备人数: " + readyCount + ", autoStartActive=" + this.autoStartActive + ", autoStartEnabled=" + this.autoStartEnabled);
       
       // 使用配置的最少玩家数量
       if (readyCount >= this.autoStartMinPlayers && !this.autoStartActive) {
-         this.debugLogger.debug("条件满足，开始倒计时流程");
+         this.plugin.getLogger().info("[调试] 条件满足，开始倒计时流程");
          this.autoStartActive = true;
          
          // 根据人数设置倒计时时间
@@ -1153,7 +1145,7 @@ public class GameManager {
             this.autoStartCountdown = 15;
          }
          
-         this.debugLogger.debug("倒计时设置为: " + this.autoStartCountdown + " 秒");
+         this.plugin.getLogger().info("[调试] 倒计时设置为: " + this.autoStartCountdown + " 秒");
          
          // 根据模式显示不同的消息
          if (this.autoStartEnabled) {
@@ -1163,14 +1155,14 @@ public class GameManager {
          }
          
          // 初始化规则投票
-         this.debugLogger.debug("初始化规则投票");
+         this.plugin.getLogger().info("[调试] 初始化规则投票");
          this.initRuleVoting();
          
          // 启动倒计时
-         this.debugLogger.debug("启动倒计时");
+         this.plugin.getLogger().info("[调试] 启动倒计时");
          this.startAutoStartCountdown();
       } else {
-         this.debugLogger.debug("条件不满足: readyCount=" + readyCount + " (需要>=2), autoStartActive=" + this.autoStartActive);
+         this.plugin.getLogger().info("[调试] 条件不满足: readyCount=" + readyCount + " (需要>=2), autoStartActive=" + this.autoStartActive);
       }
    }
    

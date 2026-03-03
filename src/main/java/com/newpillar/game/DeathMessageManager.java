@@ -256,35 +256,11 @@ public class DeathMessageManager {
     }
     
     /**
-     * 获取玩家颜色（根据队伍）
+     * 获取玩家颜色（默认金色）
      */
     private TextColor getPlayerColor(Player player) {
-        TeamManager teamManager = plugin.getTeamManager();
-        GameManager gameManager = plugin.getGameManager();
-        
-        if (gameManager == null || teamManager == null) {
-            return TextColor.color(255, 215, 0); // 默认金色
-        }
-        
-        // 单人模式默认金色
-        if (gameManager.getGameMode() == GameMode.SINGLE) {
-            return TextColor.color(255, 215, 0); // 金色
-        }
-        
-        String teamId = teamManager.getPlayerTeam(player.getUniqueId());
-        if (teamId == null) {
-            return TextColor.color(255, 215, 0); // 默认金色
-        }
-        
-        return switch (teamId) {
-            case "Red", "Team2" -> TextColor.color(255, 85, 85);      // 红色
-            case "Blue", "Team1" -> TextColor.color(85, 85, 255);     // 蓝色
-            case "Team3" -> TextColor.color(255, 255, 85);            // 黄色
-            case "Team4" -> TextColor.color(85, 255, 85);             // 绿色
-            case "Team5" -> TextColor.color(255, 85, 255);            // 紫色
-            case "Team6" -> TextColor.color(85, 255, 255);            // 青色
-            default -> TextColor.color(255, 215, 0);                   // 默认金色
-        };
+        // 队伍功能已禁用，所有玩家使用默认金色
+        return TextColor.color(255, 215, 0); // 金色
     }
     
     /**

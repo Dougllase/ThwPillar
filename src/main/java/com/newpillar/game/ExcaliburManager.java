@@ -300,18 +300,10 @@ public class ExcaliburManager {
     }
     
     /**
-     * 判断是否为敌对玩家（红蓝对抗模式）
+     * 判断是否为敌对玩家（队伍功能已禁用，所有玩家都是敌人）
      */
     private boolean isEnemy(Player player1, Player player2) {
-        // 在单人和双人模式下，所有其他玩家都是敌人
-        // 在红蓝对抗模式下，需要检查队伍
-        GameManager gameManager = plugin.getGameManager();
-        if (gameManager.getGameMode() == com.newpillar.game.GameMode.RED_VS_BLUE) {
-            TeamManager teamManager = plugin.getTeamManager();
-            String team1 = teamManager.getPlayerTeam(player1.getUniqueId());
-            String team2 = teamManager.getPlayerTeam(player2.getUniqueId());
-            return team1 != null && team2 != null && !team1.equals(team2);
-        }
+        // 队伍功能已禁用，所有其他玩家都是敌人
         return true;
     }
     

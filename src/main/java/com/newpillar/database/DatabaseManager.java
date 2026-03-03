@@ -1,8 +1,6 @@
 package com.newpillar.database;
 
 import com.newpillar.NewPillar;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.sql.*;
@@ -11,7 +9,7 @@ import java.util.logging.Level;
 
 public class DatabaseManager {
     private final NewPillar plugin;
-    private HikariDataSource dataSource;
+    private Connection connection;
     private String host;
     private int port;
     private String database;
@@ -47,34 +45,23 @@ public class DatabaseManager {
 
     private void initialize() {
         try {
-            // 配置HikariCP连接池
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true&characterEncoding=utf8",
-                    host, port, database));
-            config.setUsername(username);
-            config.setPassword(password);
-            config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-            
-            // 连接池配置
-            config.setMaximumPoolSize(10);
-            config.setMinimumIdle(5);
-            config.setIdleTimeout(300000);
-            config.setConnectionTimeout(20000);
-            config.setMaxLifetime(1800000);
-            
-            // 连接测试
-            config.setConnectionTestQuery("SELECT 1");
-            
-            // 创建连接池
-            dataSource = new HikariDataSource(config);
+            // 加载MySQL驱动
+            Class.forName("com.mysql.cj.jdbc.Driver");
 
-            plugin.getLogger().info("MySQL数据库连接池初始化成功！");
+            // 建立数据库连接
+            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
+                    host, port, database);
+            connection = DriverManager.getConnection(url, username, password);
+
+            plugin.getLogger().info("MySQL数据库连接成功！");
 
             // 创建表结构
             createTables();
 
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "MySQL数据库连接池初始化失败: " + e.getMessage(), e);
+        } catch (ClassNotFoundException e) {
+            plugin.getLogger().log(Level.SEVERE, "MySQL驱动加载失败: " + e.getMessage(), e);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "MySQL数据库连接失败: " + e.getMessage(), e);
         }
     }
 
@@ -132,8 +119,7 @@ public class DatabaseManager {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """;
 
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
+        try (Statement stmt = connection.createStatement()) {
             stmt.execute(achievementsTable);
             stmt.execute(statisticsTable);
             stmt.execute(gameStatsTable);
@@ -166,8 +152,7 @@ public class DatabaseManager {
         String checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
                          "WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()";
 
-        try (Connection conn = getConnection();
-             PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+        try (PreparedStatement checkStmt = connection.prepareStatement(checkSql)) {
             checkStmt.setString(1, tableName);
             checkStmt.setString(2, columnName);
             ResultSet rs = checkStmt.executeQuery();
@@ -175,7 +160,7 @@ public class DatabaseManager {
             if (rs.next() && rs.getInt(1) == 0) {
                 // 列不存在，添加它
                 String alterSql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition;
-                try (Statement alterStmt = conn.createStatement()) {
+                try (Statement alterStmt = connection.createStatement()) {
                     alterStmt.execute(alterSql);
                     plugin.getLogger().info("数据库表 '" + tableName + "' 添加列 '" + columnName + "' 成功！");
                 }
@@ -185,11 +170,17 @@ public class DatabaseManager {
         }
     }
 
-    public Connection getConnection() throws SQLException {
-        if (dataSource == null || dataSource.isClosed()) {
-            throw new SQLException("数据库连接池未初始化或已关闭");
+    public Connection getConnection() {
+        try {
+            if (connection == null || connection.isClosed() || !connection.isValid(5)) {
+                String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
+                        host, port, database);
+                connection = DriverManager.getConnection(url, username, password);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "重新连接MySQL数据库失败: " + e.getMessage(), e);
         }
-        return dataSource.getConnection();
+        return connection;
     }
 
     // 保存玩家成就
@@ -199,8 +190,7 @@ public class DatabaseManager {
             VALUES (?, ?)
             """;
 
-        try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             pstmt.setString(2, achievementId);
             pstmt.executeUpdate();
@@ -209,35 +199,52 @@ public class DatabaseManager {
         }
     }
 
-    // 获取玩家成就列表
+    // 检查玩家是否拥有成就
+    public boolean hasAchievement(UUID playerUuid, String achievementId) {
+        String sql = "SELECT 1 FROM player_achievements WHERE player_uuid = ? AND achievement_id = ?";
+
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, playerUuid.toString());
+            pstmt.setString(2, achievementId);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "查询成就失败: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    // 获取玩家所有成就
     public java.util.Set<String> getPlayerAchievements(UUID playerUuid) {
         java.util.Set<String> achievements = new java.util.HashSet<>();
         String sql = "SELECT achievement_id FROM player_achievements WHERE player_uuid = ?";
 
-        try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
-
             while (rs.next()) {
                 achievements.add(rs.getString("achievement_id"));
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "获取玩家成就失败: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "获取成就列表失败: " + e.getMessage(), e);
         }
 
         return achievements;
     }
 
-    // 保存玩家统计
-    public void saveStatistics(UUID playerUuid, PlayerStatisticsData data) {
+    // 保存玩家统计数据
+    public void saveStatistics(UUID playerUuid, int totalKills, int totalDeaths, int totalWins,
+                               int totalGamesPlayed, double damageDealt, double damageTaken,
+                               int blocksPlaced, int blocksBroken, int itemsLooted,
+                               int highestWinStreak, int currentWinStreak, double totalDamageDealt,
+                               double totalDamageTaken, int totalBlocksBroken, int totalBlocksPlaced,
+                               int totalItemsLooted) {
         String sql = """
-            INSERT INTO player_statistics (
-                player_uuid, total_kills, total_deaths, total_wins, total_games_played,
-                damage_dealt, damage_taken, blocks_placed, blocks_broken, items_looted,
+            INSERT INTO player_statistics (player_uuid, total_kills, total_deaths, total_wins,
+                total_games_played, damage_dealt, damage_taken, blocks_placed, blocks_broken, items_looted,
                 highest_win_streak, current_win_streak, total_damage_dealt, total_damage_taken,
-                total_blocks_broken, total_blocks_placed, total_items_looted
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                total_blocks_broken, total_blocks_placed, total_items_looted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 total_kills = VALUES(total_kills),
                 total_deaths = VALUES(total_deaths),
@@ -257,131 +264,93 @@ public class DatabaseManager {
                 total_items_looted = VALUES(total_items_looted)
             """;
 
-        try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
-            pstmt.setInt(2, data.getTotalKills());
-            pstmt.setInt(3, data.getTotalDeaths());
-            pstmt.setInt(4, data.getTotalWins());
-            pstmt.setInt(5, data.getTotalGamesPlayed());
-            pstmt.setDouble(6, data.getDamageDealt());
-            pstmt.setDouble(7, data.getDamageTaken());
-            pstmt.setInt(8, data.getBlocksPlaced());
-            pstmt.setInt(9, data.getBlocksBroken());
-            pstmt.setInt(10, data.getItemsLooted());
-            pstmt.setInt(11, data.getHighestWinStreak());
-            pstmt.setInt(12, data.getCurrentWinStreak());
-            pstmt.setDouble(13, data.getTotalDamageDealt());
-            pstmt.setDouble(14, data.getTotalDamageTaken());
-            pstmt.setInt(15, data.getTotalBlocksBroken());
-            pstmt.setInt(16, data.getTotalBlocksPlaced());
-            pstmt.setInt(17, data.getTotalItemsLooted());
+            pstmt.setInt(2, totalKills);
+            pstmt.setInt(3, totalDeaths);
+            pstmt.setInt(4, totalWins);
+            pstmt.setInt(5, totalGamesPlayed);
+            pstmt.setDouble(6, damageDealt);
+            pstmt.setDouble(7, damageTaken);
+            pstmt.setInt(8, blocksPlaced);
+            pstmt.setInt(9, blocksBroken);
+            pstmt.setInt(10, itemsLooted);
+            pstmt.setInt(11, highestWinStreak);
+            pstmt.setInt(12, currentWinStreak);
+            pstmt.setDouble(13, totalDamageDealt);
+            pstmt.setDouble(14, totalDamageTaken);
+            pstmt.setInt(15, totalBlocksBroken);
+            pstmt.setInt(16, totalBlocksPlaced);
+            pstmt.setInt(17, totalItemsLooted);
             pstmt.executeUpdate();
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "保存玩家统计失败: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "保存统计数据失败: " + e.getMessage(), e);
         }
     }
 
-    // 获取玩家统计（别名方法，兼容旧代码）
+    // 加载玩家统计数据
     public PlayerStatisticsData loadStatistics(UUID playerUuid) {
-        return getStatistics(playerUuid);
-    }
-
-    // 获取玩家统计
-    public PlayerStatisticsData getStatistics(UUID playerUuid) {
         String sql = "SELECT * FROM player_statistics WHERE player_uuid = ?";
 
-        try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
-                PlayerStatisticsData data = new PlayerStatisticsData();
-                data.setTotalKills(rs.getInt("total_kills"));
-                data.setTotalDeaths(rs.getInt("total_deaths"));
-                data.setTotalWins(rs.getInt("total_wins"));
-                data.setTotalGamesPlayed(rs.getInt("total_games_played"));
-                data.setDamageDealt(rs.getDouble("damage_dealt"));
-                data.setDamageTaken(rs.getDouble("damage_taken"));
-                data.setBlocksPlaced(rs.getInt("blocks_placed"));
-                data.setBlocksBroken(rs.getInt("blocks_broken"));
-                data.setItemsLooted(rs.getInt("items_looted"));
-                data.setHighestWinStreak(rs.getInt("highest_win_streak"));
-                data.setCurrentWinStreak(rs.getInt("current_win_streak"));
-                data.setTotalDamageDealt(rs.getDouble("total_damage_dealt"));
-                data.setTotalDamageTaken(rs.getDouble("total_damage_taken"));
-                data.setTotalBlocksBroken(rs.getInt("total_blocks_broken"));
-                data.setTotalBlocksPlaced(rs.getInt("total_blocks_placed"));
-                data.setTotalItemsLooted(rs.getInt("total_items_looted"));
-                return data;
+                return new PlayerStatisticsData(
+                    rs.getInt("total_kills"),
+                    rs.getInt("total_deaths"),
+                    rs.getInt("total_wins"),
+                    rs.getInt("total_games_played"),
+                    rs.getDouble("damage_dealt"),
+                    rs.getDouble("damage_taken"),
+                    rs.getInt("blocks_placed"),
+                    rs.getInt("blocks_broken"),
+                    rs.getInt("items_looted"),
+                    rs.getInt("highest_win_streak"),
+                    rs.getInt("current_win_streak"),
+                    rs.getDouble("total_damage_dealt"),
+                    rs.getDouble("total_damage_taken"),
+                    rs.getInt("total_blocks_broken"),
+                    rs.getInt("total_blocks_placed"),
+                    rs.getInt("total_items_looted")
+                );
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "获取玩家统计失败: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "加载统计数据失败: " + e.getMessage(), e);
         }
 
-        return new PlayerStatisticsData();
+        return new PlayerStatisticsData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    // 关闭数据库连接池
     public void close() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
-            plugin.getLogger().info("MySQL数据库连接池已关闭");
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+                plugin.getLogger().info("MySQL数据库连接已关闭！");
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "关闭MySQL数据库连接失败: " + e.getMessage(), e);
         }
     }
 
-    // 玩家统计数据类
-    public static class PlayerStatisticsData {
-        private int totalKills = 0;
-        private int totalDeaths = 0;
-        private int totalWins = 0;
-        private int totalGamesPlayed = 0;
-        private double damageDealt = 0;
-        private double damageTaken = 0;
-        private int blocksPlaced = 0;
-        private int blocksBroken = 0;
-        private int itemsLooted = 0;
-        private int highestWinStreak = 0;
-        private int currentWinStreak = 0;
-        private double totalDamageDealt = 0;
-        private double totalDamageTaken = 0;
-        private int totalBlocksBroken = 0;
-        private int totalBlocksPlaced = 0;
-        private int totalItemsLooted = 0;
-
-        // Getters and Setters
-        public int getTotalKills() { return totalKills; }
-        public void setTotalKills(int totalKills) { this.totalKills = totalKills; }
-        public int getTotalDeaths() { return totalDeaths; }
-        public void setTotalDeaths(int totalDeaths) { this.totalDeaths = totalDeaths; }
-        public int getTotalWins() { return totalWins; }
-        public void setTotalWins(int totalWins) { this.totalWins = totalWins; }
-        public int getTotalGamesPlayed() { return totalGamesPlayed; }
-        public void setTotalGamesPlayed(int totalGamesPlayed) { this.totalGamesPlayed = totalGamesPlayed; }
-        public double getDamageDealt() { return damageDealt; }
-        public void setDamageDealt(double damageDealt) { this.damageDealt = damageDealt; }
-        public double getDamageTaken() { return damageTaken; }
-        public void setDamageTaken(double damageTaken) { this.damageTaken = damageTaken; }
-        public int getBlocksPlaced() { return blocksPlaced; }
-        public void setBlocksPlaced(int blocksPlaced) { this.blocksPlaced = blocksPlaced; }
-        public int getBlocksBroken() { return blocksBroken; }
-        public void setBlocksBroken(int blocksBroken) { this.blocksBroken = blocksBroken; }
-        public int getItemsLooted() { return itemsLooted; }
-        public void setItemsLooted(int itemsLooted) { this.itemsLooted = itemsLooted; }
-        public int getHighestWinStreak() { return highestWinStreak; }
-        public void setHighestWinStreak(int highestWinStreak) { this.highestWinStreak = highestWinStreak; }
-        public int getCurrentWinStreak() { return currentWinStreak; }
-        public void setCurrentWinStreak(int currentWinStreak) { this.currentWinStreak = currentWinStreak; }
-        public double getTotalDamageDealt() { return totalDamageDealt; }
-        public void setTotalDamageDealt(double totalDamageDealt) { this.totalDamageDealt = totalDamageDealt; }
-        public double getTotalDamageTaken() { return totalDamageTaken; }
-        public void setTotalDamageTaken(double totalDamageTaken) { this.totalDamageTaken = totalDamageTaken; }
-        public int getTotalBlocksBroken() { return totalBlocksBroken; }
-        public void setTotalBlocksBroken(int totalBlocksBroken) { this.totalBlocksBroken = totalBlocksBroken; }
-        public int getTotalBlocksPlaced() { return totalBlocksPlaced; }
-        public void setTotalBlocksPlaced(int totalBlocksPlaced) { this.totalBlocksPlaced = totalBlocksPlaced; }
-        public int getTotalItemsLooted() { return totalItemsLooted; }
-        public void setTotalItemsLooted(int totalItemsLooted) { this.totalItemsLooted = totalItemsLooted; }
-    }
+    // 统计数据传输对象
+    public record PlayerStatisticsData(
+        int totalKills,
+        int totalDeaths,
+        int totalWins,
+        int totalGamesPlayed,
+        double damageDealt,
+        double damageTaken,
+        int blocksPlaced,
+        int blocksBroken,
+        int itemsLooted,
+        int highestWinStreak,
+        int currentWinStreak,
+        double totalDamageDealt,
+        double totalDamageTaken,
+        int totalBlocksBroken,
+        int totalBlocksPlaced,
+        int totalItemsLooted
+    ) {}
 }
