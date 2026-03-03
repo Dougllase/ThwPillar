@@ -1,0 +1,35 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "loot_table",
+          "value": "newpillar:main",
+          "weight": 80
+        },
+        {
+          "type": "group",
+          "weight": 20,
+          "entries": [
+            {
+              "type": "loot_table",
+              "value": "newpillar:fishing/fish",
+              "weight": 8
+            },
+            {
+              "type": "loot_table",
+              "value": "newpillar:fishing/junk",
+              "weight": 12
+            },
+            {
+              "type": "loot_table",
+              "value": "newpillar:fishing/treasure",
+              "weight": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
