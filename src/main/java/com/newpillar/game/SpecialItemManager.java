@@ -58,6 +58,7 @@ public class SpecialItemManager {
         BLUE_SCREEN("blue_screen", "蓝屏", Material.BLUE_DYE, "特殊类"),
         HONGBAO("hongbao", "红包", Material.NETHER_BRICK, "特殊类"),
         HYPNOSIS_APP("hypnosis_app", "催眠 app", Material.IRON_INGOT, "特殊类"),
+        EX_CURRY_STICK("ex_curry_stick", "『EX咖喱棒』", Material.DIAMOND_SWORD, "特殊类"),
         SPAWNER("spawner", "刷怪笼", Material.SPAWNER, "特殊类");
 
         private final String id;
@@ -206,7 +207,9 @@ public class SpecialItemManager {
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.FEET));
                 }
                 case WITCH_APPLE -> {
-                    // 女巫的红苹果 - 无Lore
+                    // 女巫的红苹果 - 同步数据包属性
+                    meta.setEnchantmentGlintOverride(true);
+                    // 注意：食物属性需要通过其他方式设置，ItemMeta 不直接支持
                 }
                 case BRUCE -> {
                     // 布鲁斯
@@ -245,6 +248,16 @@ public class SpecialItemManager {
                     lore.add(Component.empty());
                     lore.add(Component.text("").color(TextColor.color(0xFF55FF))
                             .append(Component.text("缓慢I 10s, 挖掘疲劳III 15s").color(TextColor.color(0x55FFFF))));
+                }
+                case EX_CURRY_STICK -> {
+                    // 『EX咖喱棒』 - 材质钻石剑
+                    lore.add(Component.text("右键召唤大光柱").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("光柱倒下造成伤害并击退").color(TextColor.color(0x55FFFF)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("冷却时间：").color(TextColor.color(0xFFD700))
+                            .append(Component.text("90s").color(TextColor.color(0x55FFFF))));
+                    lore.add(Component.text("伤害：6-13").color(TextColor.color(0xFF5555)));
+                    lore.add(Component.text("范围：直线路径").color(TextColor.color(0x55FFFF)));
                 }
                 case SPAWNER -> {
                     // 刷怪笼

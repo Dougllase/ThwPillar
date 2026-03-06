@@ -39,7 +39,7 @@ timers:
   # 事件触发间隔
   event_time: 60
   # 边界收缩间隔（首次收缩前的等待时间）
-  border_time: 51
+  border_time: 600
   # 游戏开始倒计时
   begin_time: 10
 
@@ -52,7 +52,7 @@ border:
   # 收缩动画持续时间（秒）
   shrink_duration: 30
   # 收缩间隔（秒）
-  shrink_interval: 21
+  shrink_interval: 15
   # 停止收缩的边界大小（小于此值进入平台崩溃）
   min_size: 10
 

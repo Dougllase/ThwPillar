@@ -660,8 +660,8 @@ public class PlayerListener implements Listener {
       // 清除鱼钩
       hook.remove();
 
-      // 使用ItemSystem的战利品表（与其他地图定时给予的系统一致）
-      ItemStack reward = this.gameManager.getItemSystem().getRandomLoot();
+      // 使用海洋地图专用的 sea 战利品表
+      ItemStack reward = this.plugin.getLootTableSystem().getRandomLoot("sea");
 
       if (reward != null) {
          // 严格设置数量为1（钓鱼只给1个）

@@ -106,10 +106,13 @@ public class MapTemplate {
       }
 
       public Location getTeleportLocation(Location center) {
+         // 柱子高度为39格 (baseY + 1 到 baseY + 39)
+         // 笼子在 baseY + 40
+         // 玩家传送到笼子顶部上方1格: baseY + 41
          return new Location(
             center.getWorld(),
             (double)(center.getBlockX() + this.x) + 0.5,
-            (double)(center.getBlockY() + 31),
+            (double)(center.getBlockY() + 41),
             (double)(center.getBlockZ() + this.z) + 0.5,
             this.yaw,
             0.0F

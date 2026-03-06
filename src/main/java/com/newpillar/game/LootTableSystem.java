@@ -145,6 +145,7 @@ public class LootTableSystem {
                 }
             }
             case "potion" -> {
+                // 旧格式兼容
                 entry.setPotionType(true);
                 if (json.has("effect")) {
                     entry.setPotionEffect(json.get("effect").getAsString());
@@ -159,11 +160,35 @@ public class LootTableSystem {
             case "enchanted_book" -> {
                 entry.setEnchantedBook(true);
             }
+            case "tag" -> {
+                // 支持 tag 类型（数据包格式）
+                if (json.has("name")) {
+                    entry.setTagName(json.get("name").getAsString());
+                }
+                entry.setExpand(json.has("expand") && json.get("expand").getAsBoolean());
+            }
+            case "group" -> {
+                // 支持 group 类型
+                entry.setGroup(true);
+                if (json.has("children") || json.has("entries")) {
+                    JsonArray children = json.has("children") ? 
+                        json.getAsJsonArray("children") : json.getAsJsonArray("entries");
+                    List<LootEntry> childEntries = new ArrayList<>();
+                    for (JsonElement childElement : children) {
+                        LootEntry childEntry = parseLootEntry(childElement.getAsJsonObject());
+                        if (childEntry != null) {
+                            childEntries.add(childEntry);
+                        }
+                    }
+                    entry.setChildEntries(childEntries);
+                }
+            }
         }
         
-        // 解析functions
+        // 解析functions（新格式支持）
         if (json.has("functions")) {
             JsonArray functions = json.getAsJsonArray("functions");
+            List<LootFunction> functionList = new ArrayList<>();
             for (JsonElement funcElement : functions) {
                 JsonObject funcObj = funcElement.getAsJsonObject();
                 String function = funcObj.get("function").getAsString();
@@ -192,8 +217,24 @@ public class LootTableSystem {
                             entry.setLore(lore);
                         }
                     }
+                    case "set_potion" -> {
+                        // 新格式：item + set_potion function
+                        if (funcObj.has("id")) {
+                            entry.setPotionType(true);
+                            entry.setPotionEffect(funcObj.get("id").getAsString());
+                        }
+                    }
+                    case "enchant_randomly" -> {
+                        entry.setEnchantRandomly(true);
+                    }
+                    case "set_components" -> {
+                        if (funcObj.has("components")) {
+                            entry.setComponents(funcObj.getAsJsonObject("components"));
+                        }
+                    }
                 }
             }
+            entry.setFunctions(functionList);
         }
         
         return entry;
@@ -234,12 +275,207 @@ public class LootTableSystem {
     
     private ItemStack createItemFromEntry(LootEntry entry) {
         return switch (entry.getType()) {
-            case "item" -> createItem(entry);
+            case "item" -> createItemWithFunctions(entry);
             case "loot_table" -> getRandomLoot(entry.getLootTableName());
             case "special" -> createSpecialItem(entry.getSpecialItemName());
             case "potion" -> createPotion(entry);
             case "enchanted_book" -> createEnchantedBook();
+            case "tag" -> createTagItem(entry);
+            case "group" -> createGroupItem(entry);
             default -> null;
+        };
+    }
+    
+    private ItemStack createItemWithFunctions(LootEntry entry) {
+        Material material = Material.matchMaterial(entry.getItemName());
+        if (material == null) {
+            plugin.getLogger().warning("未知物品: " + entry.getItemName());
+            return null;
+        }
+        
+        // 处理药水物品
+        if (entry.isPotionType()) {
+            return createPotionFromEntry(entry);
+        }
+        
+        int amount = entry.getRandomCount(random);
+        ItemStack item = new ItemStack(material, amount);
+        
+        // 应用functions
+        if (entry.isEnchantRandomly()) {
+            item = applyEnchantRandomly(item);
+        }
+        
+        // 应用components
+        if (entry.getComponents() != null) {
+            item = applyComponents(item, entry.getComponents());
+        }
+        
+        return item;
+    }
+    
+    private ItemStack createPotionFromEntry(LootEntry entry) {
+        // 判断是喷溅药水还是普通药水
+        Material potionMaterial = Material.POTION;
+        String itemName = entry.getItemName();
+        if (itemName != null && itemName.equalsIgnoreCase("splash_potion")) {
+            potionMaterial = Material.SPLASH_POTION;
+        }
+        
+        ItemStack potion = new ItemStack(potionMaterial);
+        PotionMeta meta = (PotionMeta) potion.getItemMeta();
+        
+        if (meta != null && entry.getPotionEffect() != null) {
+            // 使用原版药水类型
+            try {
+                org.bukkit.potion.PotionType potionType = org.bukkit.potion.PotionType.valueOf(
+                    entry.getPotionEffect().toUpperCase());
+                meta.setBasePotionType(potionType);
+            } catch (IllegalArgumentException e) {
+                // 如果无法识别，使用自定义效果
+                PotionEffectType effectType = PotionEffectType.getByName(entry.getPotionEffect());
+                if (effectType != null) {
+                    meta.addCustomEffect(new PotionEffect(effectType, 
+                        entry.getPotionDuration() * 20, 
+                        entry.getPotionAmplifier()), true);
+                }
+            }
+            potion.setItemMeta(meta);
+        }
+        
+        return potion;
+    }
+    
+    private ItemStack createTagItem(LootEntry entry) {
+        // tag 类型 - 从配置中加载物品列表
+        // 暂时使用 all_item 作为回退
+        plugin.getLogger().info("Tag 类型战利品表: " + entry.getTagName());
+        // 返回一个随机普通物品作为占位
+        Material[] materials = Material.values();
+        Material randomMaterial = materials[random.nextInt(materials.length)];
+        while (!randomMaterial.isItem()) {
+            randomMaterial = materials[random.nextInt(materials.length)];
+        }
+        return new ItemStack(randomMaterial);
+    }
+    
+    private ItemStack createGroupItem(LootEntry entry) {
+        // group 类型 - 从子条目中选择
+        List<LootEntry> children = entry.getChildEntries();
+        if (children.isEmpty()) {
+            return null;
+        }
+        
+        // 根据权重选择子条目
+        int totalWeight = children.stream().mapToInt(LootEntry::getWeight).sum();
+        int roll = random.nextInt(totalWeight);
+        int currentWeight = 0;
+        
+        for (LootEntry child : children) {
+            currentWeight += child.getWeight();
+            if (roll < currentWeight) {
+                return createItemFromEntry(child);
+            }
+        }
+        
+        return createItemFromEntry(children.get(0));
+    }
+    
+    private ItemStack applyEnchantRandomly(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return item;
+        
+        // 随机添加1-3个附魔
+        int enchantCount = 1 + random.nextInt(3);
+        Enchantment[] enchantments = Enchantment.values();
+        
+        for (int i = 0; i < enchantCount; i++) {
+            Enchantment enchantment = enchantments[random.nextInt(enchantments.length)];
+            if (enchantment.canEnchantItem(item)) {
+                int level = 1 + random.nextInt(enchantment.getMaxLevel());
+                meta.addEnchant(enchantment, level, true);
+            }
+        }
+        
+        item.setItemMeta(meta);
+        return item;
+    }
+    
+    private ItemStack applyComponents(ItemStack item, JsonObject components) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return item;
+        
+        // 应用 custom_name
+        if (components.has("custom_name")) {
+            JsonObject nameObj = components.getAsJsonObject("custom_name");
+            String name = nameObj.has("text") ? nameObj.get("text").getAsString() : "";
+            meta.setDisplayName("§6§l" + name);
+        }
+        
+        // 应用 lore
+        if (components.has("lore")) {
+            List<String> lore = new ArrayList<>();
+            JsonArray loreArray = components.getAsJsonArray("lore");
+            for (JsonElement loreElement : loreArray) {
+                if (loreElement.isJsonObject()) {
+                    JsonObject loreObj = loreElement.getAsJsonObject();
+                    String text = loreObj.has("text") ? loreObj.get("text").getAsString() : "";
+                    String color = loreObj.has("color") ? loreObj.get("color").getAsString() : "gray";
+                    lore.add("§" + getColorCode(color) + text);
+                } else if (loreElement.isJsonArray()) {
+                    // 处理复杂 lore 数组
+                    JsonArray loreParts = loreElement.getAsJsonArray();
+                    StringBuilder loreLine = new StringBuilder();
+                    for (JsonElement part : loreParts) {
+                        if (part.isJsonObject()) {
+                            JsonObject partObj = part.getAsJsonObject();
+                            String text = partObj.has("text") ? partObj.get("text").getAsString() : "";
+                            String color = partObj.has("color") ? partObj.get("color").getAsString() : "gray";
+                            loreLine.append("§").append(getColorCode(color)).append(text);
+                        }
+                    }
+                    lore.add(loreLine.toString());
+                }
+            }
+            meta.setLore(lore);
+        }
+        
+        // 应用 enchantment_glint_override
+        if (components.has("enchantment_glint_override")) {
+            meta.setEnchantmentGlintOverride(components.get("enchantment_glint_override").getAsBoolean());
+        }
+        
+        // 应用 custom_data
+        if (components.has("custom_data")) {
+            JsonObject customData = components.getAsJsonObject("custom_data");
+            if (customData.has("item")) {
+                setCustomItemId(meta, customData.get("item").getAsString());
+            }
+        }
+        
+        item.setItemMeta(meta);
+        return item;
+    }
+    
+    private String getColorCode(String colorName) {
+        return switch (colorName.toLowerCase()) {
+            case "black" -> "0";
+            case "dark_blue" -> "1";
+            case "dark_green" -> "2";
+            case "dark_aqua" -> "3";
+            case "dark_red" -> "4";
+            case "dark_purple" -> "5";
+            case "gold" -> "6";
+            case "gray" -> "7";
+            case "dark_gray" -> "8";
+            case "blue" -> "9";
+            case "green" -> "a";
+            case "aqua" -> "b";
+            case "red" -> "c";
+            case "light_purple" -> "d";
+            case "yellow" -> "e";
+            case "white" -> "f";
+            default -> "7";
         };
     }
     
@@ -799,6 +1035,15 @@ public class LootTableSystem {
         private List<String> lore = new ArrayList<>();
         private JsonObject customData;
         
+        // 新格式支持
+        private String tagName;
+        private boolean expand;
+        private boolean isGroup;
+        private List<LootEntry> childEntries = new ArrayList<>();
+        private List<LootFunction> functions = new ArrayList<>();
+        private boolean enchantRandomly;
+        private JsonObject components;
+        
         LootEntry(String type, int weight) {
             this.type = type;
             this.weight = weight;
@@ -817,6 +1062,7 @@ public class LootTableSystem {
         String getSpecialItemName() { return specialItemName; }
         
         void setPotionType(boolean potion) { this.potionType = potion; }
+        boolean isPotionType() { return potionType; }
         void setPotionEffect(String effect) { this.potionEffect = effect; }
         String getPotionEffect() { return potionEffect; }
         void setPotionDuration(int duration) { this.potionDuration = duration; }
@@ -841,6 +1087,36 @@ public class LootTableSystem {
         
         void setCustomData(JsonObject data) { this.customData = data; }
         JsonObject getCustomData() { return customData; }
+        
+        // 新格式 getter/setter
+        void setTagName(String name) { this.tagName = name; }
+        String getTagName() { return tagName; }
+        void setExpand(boolean expand) { this.expand = expand; }
+        boolean isExpand() { return expand; }
+        void setGroup(boolean group) { this.isGroup = group; }
+        boolean isGroup() { return isGroup; }
+        void setChildEntries(List<LootEntry> entries) { this.childEntries = entries; }
+        List<LootEntry> getChildEntries() { return childEntries; }
+        void setFunctions(List<LootFunction> funcs) { this.functions = funcs; }
+        List<LootFunction> getFunctions() { return functions; }
+        void setEnchantRandomly(boolean enchant) { this.enchantRandomly = enchant; }
+        boolean isEnchantRandomly() { return enchantRandomly; }
+        void setComponents(JsonObject comps) { this.components = comps; }
+        JsonObject getComponents() { return components; }
+    }
+    
+    // 战利品函数接口
+    private static class LootFunction {
+        private final String function;
+        private JsonObject params;
+        
+        LootFunction(String function) {
+            this.function = function;
+        }
+        
+        String getFunction() { return function; }
+        void setParams(JsonObject params) { this.params = params; }
+        JsonObject getParams() { return params; }
     }
     
     @FunctionalInterface

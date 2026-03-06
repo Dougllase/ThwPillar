@@ -59,6 +59,7 @@ public class EventSystem {
    private float rotationYawOffset = 0.0F;
    private Player currentKing = null;
    private final Map<UUID, Integer> slimeEatCount = new HashMap<>();
+   private boolean kingGameTriggered = false; // 国王游戏事件是否已触发
 
    // BossBar 用于显示事件倒计时
    private net.kyori.adventure.bossbar.BossBar eventBossBar = null;
@@ -137,6 +138,9 @@ public class EventSystem {
       }
 
       this.endCurrentEvent();
+      
+      // 重置国王游戏触发状态
+      this.kingGameTriggered = false;
    }
 
    public void triggerRandomEvent() {
@@ -150,8 +154,26 @@ public class EventSystem {
          eventType = EventType.INV_EXCHANGE;
          this.plugin.getLogger().info("[事件系统] 背包交换规则激活，强制触发背包交换事件");
       } else {
-         int eventId = this.random.nextInt(35) + 1;
-         eventType = EventType.getById(eventId);
+         // 检查国王游戏事件是否已触发
+         if (this.kingGameTriggered) {
+            // 已触发过国王游戏，从34个事件中选择（排除国王游戏）
+            int eventId;
+            do {
+               eventId = this.random.nextInt(34) + 1;
+            } while (eventId == 17); // 17是国王游戏事件ID，跳过它
+            eventType = EventType.getById(eventId);
+            this.plugin.getLogger().info("[事件系统] 国王游戏已触发，跳过事件17");
+         } else {
+            // 还未触发国王游戏，从35个事件中随机选择
+            int eventId = this.random.nextInt(35) + 1;
+            eventType = EventType.getById(eventId);
+            
+            // 如果选中国王游戏，标记为已触发
+            if (eventType == EventType.KING_GAME) {
+               this.kingGameTriggered = true;
+               this.plugin.getLogger().info("[事件系统] 国王游戏事件已触发，本局将不再重复触发");
+            }
+         }
       }
 
       this.triggerEvent(eventType);

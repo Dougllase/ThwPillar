@@ -86,6 +86,7 @@ public class GameManager {
    private MapType currentMapType = MapType.WOOL;
    private Player lookAtMeTarget = null;
    private boolean keyInversionActive = false;
+   private final com.newpillar.cache.PlayerCache playerCache = new com.newpillar.cache.PlayerCache();
 
    public GameManager(NewPillar plugin) {
       this.plugin = plugin;
@@ -374,6 +375,7 @@ public class GameManager {
 
       this.startGameLoop();
       this.itemSystem.start();
+      this.plugin.getItemEffectManager().startCooldownUpdateTask();
       this.eventSystem.start();
       this.broadcastMessage("§a笼子已破坏！战斗开始！");
    }
@@ -531,24 +533,27 @@ public class GameManager {
    }
 
    /**
-    * 边界收缩周期 - 每60秒收缩一次，每次减少5格
+    * 边界收缩周期 - 优化为10分钟完成所有收缩
+    * 初始大小80，每次减少5，最终到10，然后平台崩溃
+    * 从80->75->70->...->10，共14次收缩，每次间隔60秒，总计约14分钟
+    * 为了控制在10分钟内，调整为每次间隔45秒
     */
    private void runBorderShrinkCycle(World world) {
       org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
       double currentSize = worldBorder.getSize();
       Location centerLoc = worldBorder.getCenter();
 
-      // 如果边界大于等于6格，继续收缩
-      if (currentSize >= 6.0) {
+      // 如果边界大于等于最小尺寸，继续收缩
+      if (currentSize >= 10.0) {
          // 减少5格，用时30秒（动画时间）
          worldBorder.setSize(currentSize - 5, 30L);
          this.broadcastMessage("§6§l[幸运之柱] §c边界开始收缩！");
          this.debugLogger.debug("[Border] Shrink: " + currentSize + " -> " + (currentSize - 5));
 
-         // 设置倒计时为51秒（30秒动画 + 21秒间隔），总共约12分钟完成所有收缩
-         this.borderShrinkCountdown = 51;
+         // 设置倒计时为45秒（30秒动画 + 15秒间隔），总时间约10分钟
+         this.borderShrinkCountdown = 45;
          
-         // 启动倒计时任务，60秒后再次收缩
+         // 启动倒计时任务，45秒后再次收缩
          this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
             @Override
             public void accept(ScheduledTask scheduledTask) {
@@ -568,13 +573,13 @@ public class GameManager {
             }
          }, 20L, 20L);
       } else {
-         // 边界小于等于5格，触发平台崩溃
+         // 边界小于10格，触发平台崩溃
          this.startPlatformCollapse(world);
       }
    }
 
    /**
-    * 平台崩溃机制 - 与数据包一致
+    * 平台崩溃机制 - 优化：1分钟内从外向内依次破坏方块
     */
    private void startPlatformCollapse(World world) {
       if (this.collapseTimes >= 4) {
@@ -586,43 +591,58 @@ public class GameManager {
       this.debugLogger.debug("平台崩溃第 " + this.collapseTimes + " 次");
 
       // 根据崩溃次数删除不同区域的方块
-      // 数据包中的区域：
-      // 第1次: y 91-120 (25 91 25 到 -25 120 -25)
-      // 第2次: y 61-90
-      // 第3次: y 31-60
-      // 第4次: y 0-30
+      // 从外向内：第1次最外层，第4次最内层
       int minY, maxY;
       switch (this.collapseTimes) {
-         case 1 -> { minY = 91; maxY = 120; }
+         case 1 -> { minY = 91; maxY = 120; } // 最外层
          case 2 -> { minY = 61; maxY = 90; }
          case 3 -> { minY = 31; maxY = 60; }
-         case 4 -> { minY = 0; maxY = 30; }
+         case 4 -> { minY = 0; maxY = 30; } // 最内层
          default -> { return; }
       }
 
-      // 使用Folia调度器执行方块清除
+      // 计算每个区域需要的时间（1分钟/4次 = 15秒/次）
+      int collapseDuration = 15; // 15秒完成本次崩溃
+      int totalBlocks = (25 - (-25) + 1) * (maxY - minY + 1) * (25 - (-25) + 1); // 约25000个方块
+      int blocksPerTick = (int) Math.ceil(totalBlocks / (collapseDuration * 20)); // 每tick破坏的方块数
+      
+      this.debugLogger.debug("平台崩溃：Y=" + minY + "-" + maxY + "，破坏速度：" + blocksPerTick + "方块/tick");
+
+      // 使用Folia调度器分批破坏方块
       Location centerLoc = new Location(world, 0, minY, 0);
-      Bukkit.getRegionScheduler().execute(this.plugin, centerLoc, () -> {
-         // 清除区域方块 (25, minY, 25) 到 (-25, maxY, -25)
-         for (int x = -25; x <= 25; x++) {
-            for (int y = minY; y <= maxY; y++) {
-               for (int z = -25; z <= 25; z++) {
+      int[] progress = {0}; // 使用数组来跟踪进度
+      int xStart = -25, zStart = -25;
+      
+      this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
+         // 破坏一批方块
+         int blocksBroken = 0;
+         for (int x = xStart; x <= 25 && blocksBroken < blocksPerTick; x++) {
+            for (int z = zStart; z <= 25 && blocksBroken < blocksPerTick; z++) {
+               for (int y = minY; y <= maxY && blocksBroken < blocksPerTick; y++) {
                   world.getBlockAt(x, y, z).setType(Material.AIR);
+                  blocksBroken++;
                }
             }
          }
-         this.debugLogger.debug("平台崩溃完成：Y=" + minY + "-" + maxY);
-      });
-
-      // 重置边界计时器，继续下一轮收缩
-      this.borderShrinkTask = Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
-         @Override
-         public void accept(ScheduledTask task) {
-            if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
-               GameManager.this.runBorderShrinkCycle(world);
+         
+         progress[0] += blocksBroken;
+         
+         // 检查是否完成
+         if (progress[0] >= totalBlocks) {
+            scheduledTask.cancel();
+            this.debugLogger.debug("平台崩溃完成：Y=" + minY + "-" + maxY);
+            
+            // 如果还有更多崩溃次数，继续下一轮
+            if (this.collapseTimes < 4 && this.gameStatus == GameManager.GameStatus.PLAYING) {
+               // 等待1分钟后再开始下一轮
+               Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, task -> {
+                  if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
+                     GameManager.this.runBorderShrinkCycle(world);
+                  }
+               }, 60L * 20L);
             }
          }
-      }, (long) this.borderTimer * 20L);
+      }, 0L, 1L); // 每tick执行一次
    }
 
    public void endGame() {
@@ -708,10 +728,15 @@ public class GameManager {
          this.borderShrinkTask.cancel();
       }
 
+      if (this.collapseTask != null) {
+         this.collapseTask.cancel();
+      }
+
       // 重置崩溃次数
       this.collapseTimes = 0;
 
       this.itemSystem.stop();
+      this.plugin.getItemEffectManager().stopCooldownUpdateTask();
       this.eventSystem.stop();
       this.ruleSystem.stop();
 
@@ -731,9 +756,8 @@ public class GameManager {
          }
          
          Bukkit.getRegionScheduler().execute(this.plugin, finalWinnerLocation, () -> {
-            // 添加无敌效果（抗性提升5，持续30秒）
+            // 添加抗性提升效果（持续30秒）
             finalWinner.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 30 * 20, 4, true, false));
-            finalWinner.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 30 * 20, 4, true, false));
             
             // 播放胜利音效
             finalWinner.playSound(finalWinnerLocation, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
@@ -1938,5 +1962,9 @@ public class GameManager {
 
    public int getBorderTimer() {
       return this.borderShrinkCountdown;
+   }
+   
+   public com.newpillar.cache.PlayerCache getPlayerCache() {
+      return this.playerCache;
    }
 }

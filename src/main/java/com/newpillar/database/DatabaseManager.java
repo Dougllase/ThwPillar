@@ -1,6 +1,8 @@
 package com.newpillar.database;
 
 import com.newpillar.NewPillar;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.sql.*;
@@ -9,7 +11,7 @@ import java.util.logging.Level;
 
 public class DatabaseManager {
     private final NewPillar plugin;
-    private Connection connection;
+    private HikariDataSource dataSource;
     private String host;
     private int port;
     private String database;
@@ -45,23 +47,26 @@ public class DatabaseManager {
 
     private void initialize() {
         try {
-            // 加载MySQL驱动
-            Class.forName("com.mysql.cj.jdbc.Driver");
-
-            // 建立数据库连接
-            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
-                    host, port, database);
-            connection = DriverManager.getConnection(url, username, password);
-
-            plugin.getLogger().info("MySQL数据库连接成功！");
-
-            // 创建表结构
+            // 配置HikariCP连接池
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
+                    host, port, database));
+            config.setUsername(username);
+            config.setPassword(password);
+            config.setMaximumPoolSize(10);
+            config.setMinimumIdle(2);
+            config.setConnectionTimeout(30000);
+            config.setIdleTimeout(600000);
+            config.setMaxLifetime(1800000);
+            config.setConnectionTestQuery("SELECT 1");
+            
+            dataSource = new HikariDataSource(config);
+            
+            plugin.getLogger().info("MySQL数据库连接池初始化成功！");
             createTables();
 
-        } catch (ClassNotFoundException e) {
-            plugin.getLogger().log(Level.SEVERE, "MySQL驱动加载失败: " + e.getMessage(), e);
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "MySQL数据库连接失败: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "MySQL数据库连接池初始化失败: " + e.getMessage(), e);
         }
     }
 
@@ -119,7 +124,8 @@ public class DatabaseManager {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """;
 
-        try (Statement stmt = connection.createStatement()) {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
             stmt.execute(achievementsTable);
             stmt.execute(statisticsTable);
             stmt.execute(gameStatsTable);
@@ -149,54 +155,70 @@ public class DatabaseManager {
      * 检查并添加单个列
      */
     private void checkAndAddColumn(String tableName, String columnName, String columnDefinition) {
-        String checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
-                         "WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()";
+        Connection conn = null;
+        try {
+            conn = dataSource.getConnection();
+            String checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                             "WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()";
 
-        try (PreparedStatement checkStmt = connection.prepareStatement(checkSql)) {
-            checkStmt.setString(1, tableName);
-            checkStmt.setString(2, columnName);
-            ResultSet rs = checkStmt.executeQuery();
+            try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setString(1, tableName);
+                checkStmt.setString(2, columnName);
+                ResultSet rs = checkStmt.executeQuery();
 
-            if (rs.next() && rs.getInt(1) == 0) {
-                // 列不存在，添加它
-                String alterSql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition;
-                try (Statement alterStmt = connection.createStatement()) {
-                    alterStmt.execute(alterSql);
-                    plugin.getLogger().info("数据库表 '" + tableName + "' 添加列 '" + columnName + "' 成功！");
+                if (rs.next() && rs.getInt(1) == 0) {
+                    // 列不存在，添加它
+                    String alterSql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition;
+                    try (Statement alterStmt = conn.createStatement()) {
+                        alterStmt.execute(alterSql);
+                        plugin.getLogger().info("数据库表 '" + tableName + "' 添加列 '" + columnName + "' 成功！");
+                    }
                 }
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "检查/添加列 '" + columnName + "' 失败: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "关闭连接失败: " + e.getMessage(), e);
+                }
+            }
         }
     }
 
     public Connection getConnection() {
-        if (connection == null) {
+        if (dataSource == null) {
+            plugin.getLogger().warning("数据库连接池尚未初始化，跳过数据库操作");
             return null;
         }
         try {
-            if (connection.isClosed() || !connection.isValid(5)) {
-                String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
-                        host, port, database);
-                connection = DriverManager.getConnection(url, username, password);
-            }
+            return dataSource.getConnection();
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "重新连接MySQL数据库失败: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "获取数据库连接失败: " + e.getMessage(), e);
+            return null;
         }
-        return connection;
     }
 
     // 保存玩家成就
     public void saveAchievement(UUID playerUuid, String achievementId) {
+        Connection conn = getConnection();
+        if (conn == null) {
+            plugin.getLogger().warning("无法保存成就到数据库：数据库连接为空");
+            return;
+        }
+        
         String sql = """
             INSERT IGNORE INTO player_achievements (player_uuid, achievement_id)
             VALUES (?, ?)
             """;
 
-        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             pstmt.setString(2, achievementId);
             pstmt.executeUpdate();
+            plugin.getLogger().info("成就已保存到数据库: " + achievementId);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "保存成就失败: " + e.getMessage(), e);
         }
@@ -204,9 +226,14 @@ public class DatabaseManager {
 
     // 检查玩家是否拥有成就
     public boolean hasAchievement(UUID playerUuid, String achievementId) {
+        Connection conn = getConnection();
+        if (conn == null) {
+            return false;
+        }
+        
         String sql = "SELECT 1 FROM player_achievements WHERE player_uuid = ? AND achievement_id = ?";
 
-        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             pstmt.setString(2, achievementId);
             ResultSet rs = pstmt.executeQuery();
@@ -220,9 +247,14 @@ public class DatabaseManager {
     // 获取玩家所有成就
     public java.util.Set<String> getPlayerAchievements(UUID playerUuid) {
         java.util.Set<String> achievements = new java.util.HashSet<>();
+        Connection conn = getConnection();
+        if (conn == null) {
+            return achievements;
+        }
+        
         String sql = "SELECT achievement_id FROM player_achievements WHERE player_uuid = ?";
 
-        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
@@ -242,6 +274,12 @@ public class DatabaseManager {
                                int highestWinStreak, int currentWinStreak, double totalDamageDealt,
                                double totalDamageTaken, int totalBlocksBroken, int totalBlocksPlaced,
                                int totalItemsLooted) {
+        Connection conn = getConnection();
+        if (conn == null) {
+            plugin.getLogger().warning("无法保存统计数据到数据库：数据库连接为空");
+            return;
+        }
+        
         String sql = """
             INSERT INTO player_statistics (player_uuid, total_kills, total_deaths, total_wins,
                 total_games_played, damage_dealt, damage_taken, blocks_placed, blocks_broken, items_looted,
@@ -267,7 +305,7 @@ public class DatabaseManager {
                 total_items_looted = VALUES(total_items_looted)
             """;
 
-        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             pstmt.setInt(2, totalKills);
             pstmt.setInt(3, totalDeaths);
@@ -293,9 +331,14 @@ public class DatabaseManager {
 
     // 加载玩家统计数据
     public PlayerStatisticsData loadStatistics(UUID playerUuid) {
+        Connection conn = getConnection();
+        if (conn == null) {
+            return new PlayerStatisticsData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+        
         String sql = "SELECT * FROM player_statistics WHERE player_uuid = ?";
 
-        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
 
@@ -327,13 +370,9 @@ public class DatabaseManager {
     }
 
     public void close() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("MySQL数据库连接已关闭！");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "关闭MySQL数据库连接失败: " + e.getMessage(), e);
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+            plugin.getLogger().info("MySQL数据库连接池已关闭！");
         }
     }
 

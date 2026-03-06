@@ -2,7 +2,12 @@ package com.newpillar.game;
 
 import com.newpillar.NewPillar;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.*;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
@@ -28,6 +33,12 @@ public class ItemEffectManager {
     
     // 物品冷却时间配置 (毫秒)
     private final Map<SpecialItemManager.SpecialItemType, Long> cooldownTimes = new HashMap<>();
+    
+    // BossBar冷却显示: 玩家UUID -> BossBar
+    private final Map<UUID, BossBar> cooldownBossBars = new HashMap<>();
+    
+    // 冷却更新任务
+    private ScheduledTask cooldownUpdateTask;
 
     public ItemEffectManager(NewPillar plugin, SpecialItemManager specialItemManager) {
         this.plugin = plugin;
@@ -59,6 +70,9 @@ public class ItemEffectManager {
         // 催眠APP - 30秒冷却
         cooldownTimes.put(SpecialItemManager.SpecialItemType.HYPNOSIS_APP, 30000L);
         
+        // EX咖喱棒 - 90秒冷却
+        cooldownTimes.put(SpecialItemManager.SpecialItemType.EX_CURRY_STICK, 90000L);
+        
         // 时钟 - 15秒冷却
         cooldownTimes.put(SpecialItemManager.SpecialItemType.CLOCK, 15000L);
         
@@ -77,6 +91,47 @@ public class ItemEffectManager {
         // 注意：以下物品在数据包中无冷却定义
         // KNOCKBACK_STICK, SPEAR, CARD, IRON_SWORD, MEOW_AXE, BIG_FLAME_ROD
         // ROCKET_BOOTS, RUNNING_SHOES, FEATHER, INVISIBLE_SAND, GEDIao
+    }
+    
+    /**
+     * 启动冷却更新任务
+     */
+    public void startCooldownUpdateTask() {
+        if (cooldownUpdateTask != null) {
+            cooldownUpdateTask.cancel();
+        }
+        
+        cooldownUpdateTask = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, task -> {
+            // 更新所有玩家的BossBar冷却显示
+            for (UUID uuid : cooldownBossBars.keySet()) {
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null && player.isOnline()) {
+                    updateCooldownBossBar(player);
+                }
+            }
+        }, 0L, 1L); // 每tick更新一次
+    }
+    
+    /**
+     * 停止冷却更新任务
+     */
+    public void stopCooldownUpdateTask() {
+        if (cooldownUpdateTask != null) {
+            cooldownUpdateTask.cancel();
+            cooldownUpdateTask = null;
+        }
+        
+        // 清理所有BossBar
+        for (UUID uuid : cooldownBossBars.keySet()) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                BossBar bossBar = cooldownBossBars.remove(uuid);
+                if (bossBar != null) {
+                    bossBar.removeAll();
+                }
+            }
+        }
+        cooldownBossBars.clear();
     }
     
     /**
@@ -113,15 +168,138 @@ public class ItemEffectManager {
     }
     
     /**
-     * 设置物品冷却
+     * 更新BossBar冷却显示
+     */
+    private void updateCooldownBossBar(Player player) {
+        UUID uuid = player.getUniqueId();
+        BossBar bossBar = cooldownBossBars.get(uuid);
+        if (bossBar == null) return;
+        
+        // 找到剩余冷却时间最长的物品
+        int maxRemaining = 0;
+        SpecialItemManager.SpecialItemType maxType = null;
+        
+        Map<SpecialItemManager.SpecialItemType, Long> playerCooldowns = cooldowns.get(uuid);
+        if (playerCooldowns != null) {
+            for (Map.Entry<SpecialItemManager.SpecialItemType, Long> entry : playerCooldowns.entrySet()) {
+                SpecialItemManager.SpecialItemType type = entry.getKey();
+                Long lastUse = entry.getValue();
+                Long cooldownTime = cooldownTimes.get(type);
+                
+                if (cooldownTime != null && lastUse != null) {
+                    long remaining = cooldownTime - (System.currentTimeMillis() - lastUse);
+                    if (remaining > 0) {
+                        int remainingSec = (int) Math.ceil(remaining / 1000.0);
+                        if (remainingSec > maxRemaining) {
+                            maxRemaining = remainingSec;
+                            maxType = type;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (maxType != null) {
+            // 更新BossBar进度
+            long totalTime = cooldownTimes.get(maxType);
+            long remaining = totalTime - (System.currentTimeMillis() - playerCooldowns.get(maxType));
+            double progress = Math.max(0.0, remaining / (double) totalTime);
+            
+            bossBar.setProgress((float) progress);
+            bossBar.setTitle("冷却中... " + maxRemaining + "s");
+        } else {
+            // 没有冷却，隐藏BossBar
+            bossBar.setProgress(0.0f);
+            bossBar.setTitle("");
+        }
+    }
+    
+    /**
+     * 设置物品冷却并更新BossBar
      */
     private void setCooldown(Player player, SpecialItemManager.SpecialItemType type) {
         cooldowns.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>())
                 .put(type, System.currentTimeMillis());
+        
+        // 创建或更新BossBar
+        BossBar bossBar = cooldownBossBars.computeIfAbsent(player.getUniqueId(), k -> 
+            Bukkit.createBossBar("冷却中...", BarColor.RED, BarStyle.SOLID));
+        bossBar.addPlayer(player);
+        bossBar.setVisible(true);
+        updateCooldownBossBar(player);
+        
+        // 同时更新Actionbar显示
+        updateCooldownActionbar(player);
     }
     
     /**
-     * 检查物品是否受限制（冷却）
+     * 更新Actionbar冷却显示
+     */
+    private void updateCooldownActionbar(Player player) {
+        UUID uuid = player.getUniqueId();
+        Map<SpecialItemManager.SpecialItemType, Long> playerCooldowns = cooldowns.get(uuid);
+        
+        if (playerCooldowns == null || playerCooldowns.isEmpty()) {
+            player.sendActionBar(Component.empty());
+            return;
+        }
+        
+        // 找到剩余冷却时间最长的物品
+        int maxRemaining = 0;
+        SpecialItemManager.SpecialItemType maxType = null;
+        
+        for (Map.Entry<SpecialItemManager.SpecialItemType, Long> entry : playerCooldowns.entrySet()) {
+            SpecialItemManager.SpecialItemType type = entry.getKey();
+            Long lastUse = entry.getValue();
+            Long cooldownTime = cooldownTimes.get(type);
+            
+            if (cooldownTime != null && lastUse != null) {
+                long remaining = cooldownTime - (System.currentTimeMillis() - lastUse);
+                if (remaining > 0) {
+                    int remainingSec = (int) Math.ceil(remaining / 1000.0);
+                    if (remainingSec > maxRemaining) {
+                        maxRemaining = remainingSec;
+                        maxType = type;
+                    }
+                }
+            }
+        }
+        
+        if (maxType != null) {
+            player.sendActionBar(Component.text("§c冷却: §6" + maxRemaining + "s")
+                    .color(TextColor.color(0xFF5555)));
+        } else {
+            player.sendActionBar(Component.empty());
+        }
+    }
+    
+    /**
+     * 清除物品冷却并更新BossBar
+     */
+    public void clearCooldown(Player player, SpecialItemManager.SpecialItemType type) {
+        Map<SpecialItemManager.SpecialItemType, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
+        if (playerCooldowns != null) {
+            playerCooldowns.remove(type);
+            if (playerCooldowns.isEmpty()) {
+                cooldowns.remove(player.getUniqueId());
+                
+                // 清除BossBar
+                BossBar bossBar = cooldownBossBars.remove(player.getUniqueId());
+                if (bossBar != null) {
+                    bossBar.removeAll();
+                }
+                
+                // 清除Actionbar
+                player.sendActionBar(Component.empty());
+            } else {
+                updateCooldownBossBar(player);
+                updateCooldownActionbar(player);
+            }
+        }
+    }
+    
+    /**
+     * 检查物品是否受限制（冷却、范围检查等）
      * @return true 如果可以使用, false 如果被限制
      */
     private boolean checkItemRestrictions(Player player, SpecialItemManager.SpecialItemType type) {
@@ -132,7 +310,35 @@ public class ItemEffectManager {
             return false;
         }
         
+        // 检查范围目标（需要范围内有玩家的物品）
+        if (requiresTargetPlayer(type)) {
+            boolean hasTarget = false;
+            for (Entity entity : player.getNearbyEntities(20, 20, 20)) {
+                if (entity instanceof Player && !entity.equals(player)) {
+                    hasTarget = true;
+                    break;
+                }
+            }
+            
+            if (!hasTarget) {
+                player.sendMessage(ChatColor.RED + "附近没有其他玩家！");
+                return false;
+            }
+        }
+        
         return true;
+    }
+    
+    /**
+     * 检查物品是否需要范围内有玩家作为目标
+     */
+    private boolean requiresTargetPlayer(SpecialItemManager.SpecialItemType type) {
+        return switch (type) {
+            case HYPNOSIS_APP, // 催眠APP
+                 BLUE_SCREEN, // 蓝屏
+                 PIXIE -> true; // 皮鞋
+            default -> false;
+        };
     }
 
     public void onPlayerInteract(Player player, ItemStack item) {
@@ -237,6 +443,10 @@ public class ItemEffectManager {
                 useFlyMace(player);
                 grantItemAchievement(player, "fly_mace");
             }
+            case EX_CURRY_STICK -> {
+                useExCurryStick(player);
+                grantItemAchievement(player, "ex_curry_stick");
+            }
             case INVISIBLE_SAND -> grantItemAchievement(player, "invisible_scarf");
             case FEATHER -> grantItemAchievement(player, "feather");
             case GODLY_PICKAXE -> grantItemAchievement(player, "godly_pickaxe");
@@ -261,7 +471,8 @@ public class ItemEffectManager {
                  BLUE_SCREEN, // 蓝屏
                  HYPNOSIS_APP, // 催眠APP
                  SPAWNER, // 刷怪笼
-                 BRUCE -> true; // 布鲁斯
+                 BRUCE, // 布鲁斯
+                 EX_CURRY_STICK -> true; // EX咖喱棒
             default -> false;
         };
     }
@@ -514,10 +725,10 @@ public class ItemEffectManager {
             player.sendMessage(ChatColor.LIGHT_PURPLE + "对 " + target.getName() + " 使用催眠APP！");
             target.sendMessage(ChatColor.LIGHT_PURPLE + "你被 " + player.getName() + " 催眠了！");
 
-            // 催眠效果：缓慢I 10s，挖掘疲劳III 15s，反胃II 10s
+            // 催眠效果：缓慢I 10s，挖掘疲劳III 15s，反胃I 30s（加强效果）
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 0)); // 缓慢I 10s
             target.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 300, 2)); // 挖掘疲劳III 15s
-            target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 200, 1)); // 反胃II 10s
+            target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 600, 0)); // 反胃I 30s（加强）
         } else {
             player.sendMessage(ChatColor.RED + "附近没有其他玩家！");
         }
@@ -674,6 +885,106 @@ public class ItemEffectManager {
             case FEATHER -> applyFeatherEffect(player);
             case INVISIBLE_SAND -> applyInvisibleEffect(player);
             default -> clearActiveEffects(player);
+        }
+    }
+    
+    /**
+     * 『EX咖喱棒』技能实现
+     * 召唤大光柱，倒下造成伤害并击退
+     */
+    private void useExCurryStick(Player player) {
+        Location playerLoc = player.getLocation();
+        World world = player.getWorld();
+        
+        // 1. 召唤竖直向上的大光柱
+        spawnVerticalLightColumn(world, playerLoc);
+        
+        // 2. 延迟后光柱倒向玩家方向
+        Bukkit.getRegionScheduler().runDelayed(plugin, playerLoc, task -> {
+            if (!player.isOnline()) return;
+            
+            // 计算光柱倒下的方向（以玩家头部为轴心）
+            Vector direction = playerLoc.getDirection().normalize();
+            direction.setY(0); // 保持水平方向
+            
+            // 倒向玩家方向（从竖直变为水平）
+            animateLightColumnFall(world, playerLoc, direction);
+            
+            // 3. 延迟后造成伤害
+            Bukkit.getRegionScheduler().runDelayed(plugin, playerLoc, task2 -> {
+                if (!player.isOnline()) return;
+                
+                // 造成伤害并击退
+                dealDamageAndKnockback(player, playerLoc);
+            }, 20L); // 1秒延迟
+        }, 10L); // 0.5秒延迟
+    }
+    
+    /**
+     * 召唤竖直向上的大光柱
+     */
+    private void spawnVerticalLightColumn(World world, Location loc) {
+        // 从地面到天空的光柱
+        for (int y = 0; y < 256; y += 5) {
+            world.spawnParticle(Particle.LARGE_SMOKE, loc.getX(), y, loc.getZ(), 1, 0.5, 0.5, 0.5, 1.0);
+            world.spawnParticle(Particle.FLAME, loc.getX(), y, loc.getZ(), 1, 0.3, 0.3, 0.3, 0.5);
+        }
+        
+        // 播放音效
+        world.playSound(loc, Sound.BLOCK_BEACON_AMBIENT, 1.0f, 1.0f);
+    }
+    
+    /**
+     * 光柱倒下的动画
+     */
+    private void animateLightColumnFall(World world, Location loc, Vector direction) {
+        // 从竖直变为水平的动画（1秒）
+        for (int i = 0; i < 20; i++) {
+            double progress = i / 20.0; // 0.0 to 1.0
+            double angle = Math.PI / 2 * progress; // 90度到0度
+            
+            // 计算光柱方向
+            double x = direction.getX() * Math.cos(Math.atan2(direction.getZ(), direction.getX())) * Math.sin(angle);
+            double y = Math.cos(angle);
+            double z = direction.getZ() * Math.cos(Math.atan2(direction.getZ(), direction.getX())) * Math.sin(angle);
+            
+            // 绘制光柱路径
+            for (double dist = 0; dist < 20; dist += 1) {
+                Location particleLoc = loc.clone().add(x * dist, y * dist, z * dist);
+                world.spawnParticle(Particle.DUST, particleLoc, 1, 0, 0, 0, new Particle.DustOptions(Color.ORANGE, 1.0f));
+            }
+        }
+        
+        // 播放倒下音效
+        world.playSound(loc, Sound.ENTITY_ENDER_DRAGON_FLAP, 1.0f, 1.0f);
+    }
+    
+    /**
+     * 对路径上的敌对实体造成伤害并击退
+     */
+    private void dealDamageAndKnockback(Player player, Location loc) {
+        // 获取路径上的实体（以玩家为中心，半径20格）
+        for (Entity entity : player.getNearbyEntities(20, 20, 20)) {
+            if (entity instanceof Player target && !target.equals(player)) {
+                // 对玩家造成伤害
+                target.damage(random.nextDouble() * 7 + 6, player); // 6-13伤害
+                
+                // 击退效果
+                Vector knockback = target.getLocation().toVector().subtract(loc.toVector()).normalize();
+                knockback.setY(Math.max(0.4, knockback.getY())); // 确保有向上的击退
+                target.setVelocity(knockback.multiply(1.5));
+                
+                // 播放音效
+                target.playSound(target.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.0f);
+            } else if (entity instanceof org.bukkit.entity.LivingEntity livingEntity) {
+                // 对其他生物造成伤害
+                livingEntity.damage(random.nextDouble() * 7 + 6, player);
+                
+                // 击退效果
+                Vector knockback = livingEntity.getLocation().toVector().subtract(loc.toVector()).normalize();
+                knockback.setY(Math.max(0.4, knockback.getY()));
+                livingEntity.setVelocity(knockback.multiply(1.5));
+            }
         }
     }
     
