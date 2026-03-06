@@ -521,7 +521,9 @@ public class ItemSystem {
             if (this.gameManager.getGameStatus() != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
-               this.lootTimer--;
+               // Made in Heaven时间加速支持
+               int multiplier = this.gameManager.getTimeAccelerationMultiplier();
+               this.lootTimer -= multiplier;
                if (this.lootTimer > 0) {
                   String actionBar = "§a物品: §6§l" + this.lootTimer;
 

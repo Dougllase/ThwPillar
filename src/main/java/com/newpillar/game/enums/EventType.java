@@ -38,7 +38,8 @@ public enum EventType {
    NOTHING_32(32, "无事发生", "§a无事发生...", 0, "§a", "§f"),
    NOTHING_33(33, "无事发生", "§a无事发生...", 0, "§a", "§f"),
    NOTHING_34(34, "无事发生", "§a无事发生...", 0, "§a", "§f"),
-   NOTHING_35(35, "无事发生", "§a无事发生...", 0, "§a", "§f");
+   NOTHING_35(35, "无事发生", "§a无事发生...", 0, "§a", "§f"),
+   MADE_IN_HEAVEN(36, "メイド・イン・ヘブン", "§e時間は加速します……！！！", 30, "§e", "§6");
 
    private final int id;
    private final String name;

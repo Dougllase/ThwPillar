@@ -100,6 +100,12 @@ public class GameManager {
    private boolean keyInversionActive = false;
    private final com.newpillar.cache.PlayerCache playerCache = new com.newpillar.cache.PlayerCache();
    
+   // Made in Heaven 时间加速相关
+   private boolean timeAccelerationActive = false;
+   private int timeAccelerationMultiplier = 4; // 4倍速
+   private ScheduledTask dayNightCycleTask = null;
+   private long originalTime = 0;
+   
    // 新增管理器
    private final BorderManager borderManager;
    private final CollapseManager collapseManager;
@@ -1989,6 +1995,57 @@ public class GameManager {
 
    public void setKeyInversionActive(boolean keyInversionActive) {
       this.keyInversionActive = keyInversionActive;
+   }
+
+   // ==================== Made in Heaven 时间加速方法 ====================
+
+   public boolean isTimeAccelerationActive() {
+      return this.timeAccelerationActive;
+   }
+
+   public int getTimeAccelerationMultiplier() {
+      return this.timeAccelerationActive ? this.timeAccelerationMultiplier : 1;
+   }
+
+   /**
+    * 启动时间加速（Made in Heaven）
+    */
+   public void startTimeAcceleration() {
+      if (this.timeAccelerationActive) return;
+      
+      this.timeAccelerationActive = true;
+      World world = this.getGameWorld();
+      if (world == null) return;
+      
+      this.debugLogger.debug("[Made in Heaven] 时间加速启动！");
+      
+      // 启动快速昼夜交替（6秒一个周期 = 3秒白天 + 3秒黑夜）
+      this.dayNightCycleTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world.getSpawnLocation(), 
+         (task) -> {
+            if (!this.timeAccelerationActive || this.gameStatus != GameStatus.PLAYING) {
+               task.cancel();
+               return;
+            }
+            // 快速推进时间
+            long currentTime = world.getTime();
+            world.setTime((currentTime + 200) % 24000); // 快速推进时间
+         }, 1L, 1L);
+   }
+
+   /**
+    * 停止时间加速
+    */
+   public void stopTimeAcceleration() {
+      if (!this.timeAccelerationActive) return;
+      
+      this.timeAccelerationActive = false;
+      
+      if (this.dayNightCycleTask != null) {
+         this.dayNightCycleTask.cancel();
+         this.dayNightCycleTask = null;
+      }
+      
+      this.debugLogger.debug("[Made in Heaven] 时间加速停止！");
    }
 
    // ==================== 新增管理器 Getter 方法 ====================

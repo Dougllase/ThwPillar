@@ -69,7 +69,9 @@ public class BorderManager {
                         return;
                     }
                     
-                    borderShrinkCountdown--;
+                    // Made in Heaven时间加速支持
+                    int multiplier = gameManager.getTimeAccelerationMultiplier();
+                    borderShrinkCountdown -= multiplier;
                     
                     if (borderShrinkCountdown <= 0) {
                         scheduledTask.cancel();
@@ -105,7 +107,9 @@ public class BorderManager {
                             return;
                         }
                         
-                        borderShrinkCountdown--;
+                        // Made in Heaven时间加速支持
+                        int multiplier = gameManager.getTimeAccelerationMultiplier();
+                        borderShrinkCountdown -= multiplier;
                         
                         if (borderShrinkCountdown <= 0) {
                             scheduledTask.cancel();

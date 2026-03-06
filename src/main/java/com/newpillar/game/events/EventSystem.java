@@ -386,6 +386,9 @@ public class EventSystem {
          case ALWAYS_EXPLODE:
             this.eventAlwaysExplode();
             break;
+         case MADE_IN_HEAVEN:
+            this.eventMadeInHeaven();
+            break;
          case NOTHING_31:
          case NOTHING_32:
          case NOTHING_33:
@@ -572,6 +575,11 @@ public class EventSystem {
 
          if (this.currentEvent == EventType.LAVA_RISE) {
             this.clearLavaRise();
+         }
+
+         if (this.currentEvent == EventType.MADE_IN_HEAVEN) {
+            this.gameManager.stopTimeAcceleration();
+            Bukkit.broadcastMessage("§e§l[メイド・イン・ヘブン] §c时间加速已停止！");
          }
 
          this.gameManager.setLookAtMeTarget(null);
@@ -1631,6 +1639,20 @@ public class EventSystem {
       if (!this.gameManager.isKeyInversionActive()) {
          this.gameManager.setKeyInversionActive(true);
       }
+   }
+
+   /**
+    * 事件36 - メイド・イン・ヘブン (Made in Heaven)
+    * 时间加速，昼夜快速交替，其他计时器4倍速
+    */
+   private void eventMadeInHeaven() {
+      this.debugLogger.eventInfo("[事件36-メイド・イン・ヘブン] 时间开始加速！");
+      
+      // 发送金色咏唱文本
+      Bukkit.broadcastMessage("§6『螺旋階段』『カブトムシ』『廃墟街』『イチジク塔』『カブトムシ』『ドレザの道』『カブトムシ』『特異点』『ジョット』『天使』『アジサイ』『カブトムシ』『特異点』『秘密の皇帝』");
+      
+      // 启动时间加速
+      this.gameManager.startTimeAcceleration();
    }
 
    private List<Player> getInGamePlayers() {
