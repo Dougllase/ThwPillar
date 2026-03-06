@@ -508,7 +508,7 @@ public class ItemSystem {
       World world = this.gameManager.getGameWorld();
       if (world != null) {
          this.itemTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
-            if (this.gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) {
+            if (this.gameManager.getGameStatus() != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
                this.lootTimer--;
@@ -540,7 +540,7 @@ public class ItemSystem {
          Player player = Bukkit.getPlayer(uuid);
          if (player != null && player.isOnline()) {
             PlayerData data = this.gameManager.getPlayerData(uuid);
-            if (data != null && data.getState() == GameManager.PlayerState.INGAME) {
+            if (data != null && data.getState() == PlayerState.INGAME) {
                ItemSystem.LootEntry entry = this.getRandomLootEntry();
                if (entry != null) {
                   ItemStack stack = new ItemStack(entry.material, 1);

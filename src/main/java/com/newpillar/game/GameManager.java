@@ -38,7 +38,7 @@ import com.newpillar.game.StatisticsSystem.PlayerStatistics;
 public class GameManager {
    private final NewPillar plugin;
    private final com.newpillar.utils.DebugLogger debugLogger;
-   private GameManager.GameStatus gameStatus = GameManager.GameStatus.LOBBY;
+   private GameStatus gameStatus = GameStatus.LOBBY;
    private int gameId = 0;
    private final Map<UUID, PlayerData> playerDataMap = new ConcurrentHashMap<>();
    private final Set<UUID> readyPlayers = ConcurrentHashMap.newKeySet();
@@ -87,6 +87,11 @@ public class GameManager {
    private Player lookAtMeTarget = null;
    private boolean keyInversionActive = false;
    private final com.newpillar.cache.PlayerCache playerCache = new com.newpillar.cache.PlayerCache();
+   
+   // 新增管理器
+   private final BorderManager borderManager;
+   private final CollapseManager collapseManager;
+   private final VoteManager voteManager;
 
    public GameManager(NewPillar plugin) {
       this.plugin = plugin;
@@ -99,6 +104,9 @@ public class GameManager {
       this.templateManager = new MapTemplateManager(plugin);
       this.templateMapGenerator = new TemplateMapGenerator(plugin, this);
       this.ruleSystem = new RuleSystem(plugin, this);
+      this.borderManager = new BorderManager(plugin, this);
+      this.collapseManager = new CollapseManager(plugin, this);
+      this.voteManager = new VoteManager(plugin, this);
       this.loadConfig();
       this.initializeWorldSettings();
    }
@@ -191,7 +199,7 @@ public class GameManager {
          if (this.readyPlayers.size() < 1) {
             this.broadcastMessage("§c没有足够的玩家开始游戏！");
          } else {
-            this.gameStatus = GameManager.GameStatus.PLAYING;
+            this.gameStatus = GameStatus.PLAYING;
             this.gameId++;
 
             for (PlayerData data : this.playerDataMap.values()) {
@@ -223,7 +231,7 @@ public class GameManager {
                   PlayerData data = this.playerDataMap.get(uuid);
                   if (data != null) {
                      data.setGameId(this.gameId);
-                     data.setState(GameManager.PlayerState.INGAME);
+                     data.setState(PlayerState.INGAME);
                      this.alivePlayers.add(uuid);
                      Bukkit.getRegionScheduler().execute(this.plugin, player.getLocation(), () -> player.setGameMode(GameMode.ADVENTURE));
                   }
@@ -282,7 +290,7 @@ public class GameManager {
    }
 
    public boolean canStartGame() {
-      return this.gameStatus != GameManager.GameStatus.LOBBY ? false : this.readyPlayers.size() >= 2;
+      return this.gameStatus != GameStatus.LOBBY ? false : this.readyPlayers.size() >= 2;
    }
 
    private void startCountdown() {
@@ -290,7 +298,7 @@ public class GameManager {
       if (world != null) {
          int[] remaining = new int[]{this.beginTimer};
          this.countdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
-            if (this.gameStatus != GameManager.GameStatus.PLAYING) {
+            if (this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
                if (remaining[0] <= 5 && remaining[0] > 0) {
@@ -486,7 +494,7 @@ public class GameManager {
          this.startBorderShrink(world);
 
          this.gameLoopTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
-            if (this.gameStatus != GameManager.GameStatus.PLAYING) {
+            if (this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
                this.gameTimeSec++;
@@ -516,7 +524,7 @@ public class GameManager {
       this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
          @Override
          public void accept(ScheduledTask scheduledTask) {
-            if (GameManager.this.gameStatus != GameManager.GameStatus.PLAYING) {
+            if (GameManager.this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
                return;
             }
@@ -556,7 +564,7 @@ public class GameManager {
          this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
             @Override
             public void accept(ScheduledTask scheduledTask) {
-               if (GameManager.this.gameStatus != GameManager.GameStatus.PLAYING) {
+               if (GameManager.this.gameStatus != GameStatus.PLAYING) {
                   scheduledTask.cancel();
                   return;
                }
@@ -565,7 +573,7 @@ public class GameManager {
                
                if (GameManager.this.borderShrinkCountdown <= 0) {
                   scheduledTask.cancel();
-                  if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
+                  if (GameManager.this.gameStatus == GameStatus.PLAYING) {
                      GameManager.this.runBorderShrinkCycle(world);
                   }
                }
@@ -648,14 +656,14 @@ public class GameManager {
             currentRadius[0]--;
             
             // 检查是否完成本轮
-            if (currentRadius[0] < innerRadius || this.gameStatus != GameManager.GameStatus.PLAYING) {
+            if (currentRadius[0] < innerRadius || this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
                this.debugLogger.debug("平台崩溃第 " + this.collapseTimes + " 轮完成");
                
                // 延迟后开始下一轮
-               if (this.collapseTimes < 4 && this.gameStatus == GameManager.GameStatus.PLAYING) {
+               if (this.collapseTimes < 4 && this.gameStatus == GameStatus.PLAYING) {
                   Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, task -> {
-                     if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
+                     if (GameManager.this.gameStatus == GameStatus.PLAYING) {
                         GameManager.this.startPlatformCollapseRadiusMode(world);
                      }
                   }, 100L); // 5秒间隔
@@ -687,7 +695,7 @@ public class GameManager {
             currentRadius[0]--;
             
             // 检查是否完全崩溃
-            if (currentRadius[0] < 0 || this.gameStatus != GameManager.GameStatus.PLAYING) {
+            if (currentRadius[0] < 0 || this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
                this.debugLogger.debug("平台完全崩溃！");
                this.broadcastMessage("§c§l平台已完全崩溃！");
@@ -764,7 +772,7 @@ public class GameManager {
       final Location finalWinnerLocation = winnerLocation;
       
       // 停止游戏系统
-      this.gameStatus = GameManager.GameStatus.LOBBY;
+      this.gameStatus = GameStatus.LOBBY;
       this.gameTimeMin = 0;
       this.gameTimeSec = 0;
       if (this.countdownTask != null) {
@@ -890,7 +898,7 @@ public class GameManager {
 
                // 庆祝结束，现在才将玩家状态改为LOBBY
                for (PlayerData data : GameManager.this.playerDataMap.values()) {
-                  data.setState(GameManager.PlayerState.LOBBY);
+                  data.setState(PlayerState.LOBBY);
                   // 清除死亡位置记录
                   data.setDeathLocation(null);
                }
@@ -946,7 +954,7 @@ public class GameManager {
                      UUID uuid = player.getUniqueId();
                      PlayerData data = GameManager.this.playerDataMap.get(uuid);
                      if (data != null) {
-                        data.setState(GameManager.PlayerState.READY);
+                        data.setState(PlayerState.READY);
                         GameManager.this.readyPlayers.add(uuid);
                         // 通知玩家已自动准备
                         player.sendMessage("§a游戏结束！你已自动准备下一局！");
@@ -1072,13 +1080,13 @@ public class GameManager {
       if (this.playerDataMap.containsKey(uuid)) {
          this.plugin.getLogger().info("[调试] 玩家已在游戏中，拒绝加入");
          player.sendMessage("§c你已经在游戏中了！");
-      } else if (this.gameStatus == GameManager.GameStatus.PLAYING) {
+      } else if (this.gameStatus == GameStatus.PLAYING) {
          this.plugin.getLogger().info("[调试] 游戏进行中，以观察者身份加入");
          // 游戏进行中，以观察者身份加入
          this.playerDataMap.put(uuid, new PlayerData(uuid));
          PlayerData data = this.playerDataMap.get(uuid);
          data.setPlayerName(player.getName());
-         data.setState(GameManager.PlayerState.SPECTATOR);
+         data.setState(PlayerState.SPECTATOR);
          data.setGameId(this.gameId);
          this.spectators.add(uuid);
 
@@ -1112,14 +1120,14 @@ public class GameManager {
             PlayerData data = this.playerDataMap.get(uuid);
             this.plugin.getLogger().info("[调试] 自动开始启用，PlayerData=" + (data != null ? "不为null" : "为null"));
             if (data != null) {
-               data.setState(GameManager.PlayerState.READY);
+               data.setState(PlayerState.READY);
                this.readyPlayers.add(uuid);
                this.plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 已自动准备，当前准备人数: " + this.readyPlayers.size());
                player.sendMessage("§a欢迎加入 NewPillar！你已自动准备！");
                player.sendMessage("§e当前准备人数: " + this.readyPlayers.size());
                
                // 如果游戏即将开始（倒计时进行中），向新玩家发送相关信息
-               if (this.autoStartActive && this.gameStatus == GameManager.GameStatus.LOBBY) {
+               if (this.autoStartActive && this.gameStatus == GameStatus.LOBBY) {
                   player.sendMessage("");
                   player.sendMessage("§6§l═══════════════════════════");
                   player.sendMessage("§e§l        游戏即将开始");
@@ -1171,19 +1179,19 @@ public class GameManager {
       this.alivePlayers.remove(uuid);
       this.spectators.remove(uuid);
       this.playerDataMap.remove(uuid);
-      if (this.gameStatus == GameManager.GameStatus.PLAYING && this.alivePlayers.size() <= 1) {
+      if (this.gameStatus == GameStatus.PLAYING && this.alivePlayers.size() <= 1) {
          this.endGame();
       }
    }
 
    public void playerReady(Player player) {
-      if (this.gameStatus != GameManager.GameStatus.LOBBY) {
+      if (this.gameStatus != GameStatus.LOBBY) {
          player.sendMessage("§c游戏进行中，无法准备！");
       } else {
          UUID uuid = player.getUniqueId();
          PlayerData data = this.playerDataMap.get(uuid);
          if (data != null) {
-            data.setState(GameManager.PlayerState.READY);
+            data.setState(PlayerState.READY);
             this.readyPlayers.add(uuid);
             this.spectators.remove(uuid);
             player.sendMessage("§a你已准备！");
@@ -1253,7 +1261,7 @@ public class GameManager {
       this.autoStartTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
          @Override
          public void accept(ScheduledTask task) {
-            if (GameManager.this.gameStatus != GameManager.GameStatus.LOBBY) {
+            if (GameManager.this.gameStatus != GameStatus.LOBBY) {
                task.cancel();
                GameManager.this.autoStartActive = false;
                return;
@@ -1561,21 +1569,21 @@ public class GameManager {
     }
 
    public void playerSpectate(Player player) {
-      if (this.gameStatus != GameManager.GameStatus.LOBBY) {
+      if (this.gameStatus != GameStatus.LOBBY) {
          player.sendMessage("§c游戏进行中，无法切换 spectator！");
       } else {
          UUID uuid = player.getUniqueId();
          PlayerData data = this.playerDataMap.get(uuid);
          if (data != null) {
             // 切换模式
-            if (data.getState() == GameManager.PlayerState.SPECTATOR) {
+            if (data.getState() == PlayerState.SPECTATOR) {
                // 从旁观切换到准备状态
-               data.setState(GameManager.PlayerState.LOBBY);
+               data.setState(PlayerState.LOBBY);
                this.spectators.remove(uuid);
                player.sendMessage("§a你已退出旁观模式！");
             } else {
                // 从其他状态切换到旁观
-               data.setState(GameManager.PlayerState.SPECTATOR);
+               data.setState(PlayerState.SPECTATOR);
                this.readyPlayers.remove(uuid);
                this.spectators.add(uuid);
                player.sendMessage("§7你现在是旁观者！");
@@ -1589,7 +1597,7 @@ public class GameManager {
       PlayerData data = this.playerDataMap.get(uuid);
       if (data != null) {
          // 将出局玩家状态设为 SPECTATOR（观察者），而不是 OUT
-         data.setState(GameManager.PlayerState.SPECTATOR);
+         data.setState(PlayerState.SPECTATOR);
          // 添加到观察者集合
          this.spectators.add(uuid);
          // 从存活玩家集合中移除
@@ -1640,7 +1648,7 @@ public class GameManager {
 
          PlayerData data = this.playerDataMap.get(uuid);
          data.setPlayerName(player.getName());
-         data.setState(GameManager.PlayerState.READY);
+         data.setState(PlayerState.READY);
          this.readyPlayers.add(uuid);
          player.sendMessage("§a你已被管理员强制拉入游戏！");
       }
@@ -1725,12 +1733,12 @@ public class GameManager {
    }
 
    public void shutdown() {
-      if (this.gameStatus == GameManager.GameStatus.PLAYING) {
+      if (this.gameStatus == GameStatus.PLAYING) {
          this.endGame(true);
       }
    }
 
-   public GameManager.GameStatus getGameStatus() {
+   public GameStatus getGameStatus() {
       return this.gameStatus;
    }
 
@@ -1971,17 +1979,38 @@ public class GameManager {
       this.keyInversionActive = keyInversionActive;
    }
 
-   public static enum GameStatus {
-      LOBBY,
-      PLAYING;
+   // ==================== 新增管理器 Getter 方法 ====================
+
+   public BorderManager getBorderManager() {
+      return this.borderManager;
    }
 
-   public static enum PlayerState {
-      LOBBY,
-      READY,
-      INGAME,
-      SPECTATOR,
-      OUT;
+   public CollapseManager getCollapseManager() {
+      return this.collapseManager;
+   }
+
+   public VoteManager getVoteManager() {
+      return this.voteManager;
+   }
+
+   /**
+    * 触发平台崩溃（由BorderManager调用）
+    */
+   public void triggerPlatformCollapse() {
+      World world = this.getGameWorld();
+      if (world != null) {
+         this.collapseManager.startPlatformCollapse(world);
+      }
+   }
+
+   /**
+    * 开始平台崩溃（公开方法供外部调用）
+    */
+   public void startPlatformCollapse() {
+      World world = this.getGameWorld();
+      if (world != null) {
+         this.collapseManager.startPlatformCollapse(world);
+      }
    }
 
    // 游戏模式枚举 (同步自数据包设计)

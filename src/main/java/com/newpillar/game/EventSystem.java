@@ -90,7 +90,7 @@ public class EventSystem {
       World world = this.gameManager.getGameWorld();
       if (world != null) {
          this.eventTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
-            if (this.gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) {
+            if (this.gameManager.getGameStatus() != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
                // 只有在没有事件进行时才开始倒计时
@@ -103,7 +103,7 @@ public class EventSystem {
             }
          }, 1L, 20L);
          this.durationTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
-            if (this.gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) {
+            if (this.gameManager.getGameStatus() != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
                if (this.eventDuration > 0) {

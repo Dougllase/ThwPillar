@@ -3,6 +3,7 @@ package com.newpillar.commands;
 import com.newpillar.NewPillar;
 import com.newpillar.game.EventType;
 import com.newpillar.game.GameManager;
+import com.newpillar.game.GameStatus;
 import com.newpillar.game.MapType;
 import com.newpillar.utils.StructureTemplate;
 import java.util.ArrayList;
@@ -400,7 +401,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
                   return;
                }
 
-               if (gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) {
+               if (gameManager.getGameStatus() != GameStatus.PLAYING) {
                   player.sendMessage("§c游戏未在进行中！");
                   return;
                }

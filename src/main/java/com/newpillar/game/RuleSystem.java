@@ -152,7 +152,7 @@ public class RuleSystem implements Listener {
         if (world == null) return;
         
         partnerTask = Bukkit.getRegionScheduler().runAtFixedRate(plugin, world, 0, 0, task -> {
-            if (gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) {
+            if (gameManager.getGameStatus() != GameStatus.PLAYING) {
                 task.cancel();
                 return;
             }
@@ -206,7 +206,7 @@ public class RuleSystem implements Listener {
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         if (currentRule != RuleType.VOID_MERCY) return;
-        if (gameManager.getGameStatus() != GameManager.GameStatus.PLAYING) return;
+        if (gameManager.getGameStatus() != GameStatus.PLAYING) return;
 
         Player player = event.getPlayer();
         if (!isInGame(player)) return;

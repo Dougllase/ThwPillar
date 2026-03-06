@@ -9,7 +9,7 @@ public class PlayerData {
    private int gameId = 0;
    private int playerNumber = 0;
    private int deathCheck = 0;
-   private GameManager.PlayerState state = GameManager.PlayerState.LOBBY;
+   private PlayerState state = PlayerState.LOBBY;
    private Location deathLocation = null;
 
    public PlayerData(UUID uuid) {
@@ -65,11 +65,11 @@ public class PlayerData {
       this.deathCheck = deathCheck;
    }
 
-   public GameManager.PlayerState getState() {
+   public PlayerState getState() {
       return this.state;
    }
 
-   public void setState(GameManager.PlayerState state) {
+   public void setState(PlayerState state) {
       this.state = state;
    }
 }

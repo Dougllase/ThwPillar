@@ -4,6 +4,7 @@ import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
 import com.newpillar.game.ItemEffectManager;
 import com.newpillar.game.PlayerData;
+import com.newpillar.game.PlayerState;
 import com.newpillar.game.SpecialItemManager;
 import com.newpillar.game.VanillaItemManager;
 import com.newpillar.game.VanillaItemEffectManager;
@@ -77,7 +78,7 @@ public class PlayerListener implements Listener {
       Player player = event.getEntity();
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
       if (data != null) {
-         if (data.getState() == GameManager.PlayerState.INGAME) {
+         if (data.getState() == PlayerState.INGAME) {
             // 检查是否是国王游戏中国王被杀
             Player killer = player.getKiller();
             if (killer != null && this.gameManager.isKingGameActive() && this.gameManager.isCurrentKing(player)) {
@@ -159,11 +160,11 @@ public class PlayerListener implements Listener {
       if (data != null) {
          // 获取死亡位置
          final Location deathLocation = data.getDeathLocation();
-         GameManager.PlayerState state = data.getState();
+         PlayerState state = data.getState();
          plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 状态: " + state + ", 死亡位置: " + deathLocation);
          
          // 如果玩家是观察者状态（出局后转为观察者）且有死亡位置记录
-         if (state == GameManager.PlayerState.SPECTATOR && deathLocation != null) {
+         if (state == PlayerState.SPECTATOR && deathLocation != null) {
             plugin.getLogger().info("[调试] 设置重生位置为死亡位置: " + deathLocation);
             // 设置重生位置为死亡位置
             event.setRespawnLocation(deathLocation);
@@ -205,7 +206,7 @@ public class PlayerListener implements Listener {
    public void onPlayerQuit(PlayerQuitEvent event) {
       Player player = event.getPlayer();
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
-      if (data != null && data.getState() == GameManager.PlayerState.INGAME) {
+      if (data != null && data.getState() == PlayerState.INGAME) {
          this.gameManager.playerOut(player);
          this.gameManager.broadcastMessage("§c" + player.getName() + " §7离开了游戏！剩余玩家: §a" + this.gameManager.getAlivePlayers().size());
       }
@@ -228,7 +229,7 @@ public class PlayerListener implements Listener {
       handleRocketBootsDoubleJump(player);
       
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
-      if (data != null && data.getState() == GameManager.PlayerState.INGAME) {
+      if (data != null && data.getState() == PlayerState.INGAME) {
          Player lookAtMeTarget = this.gameManager.getLookAtMeTarget();
          if (lookAtMeTarget != null && !lookAtMeTarget.equals(player)) {
             Location playerLoc = player.getLocation();
@@ -435,7 +436,7 @@ public class PlayerListener implements Listener {
 
       // 检查玩家是否在游戏中
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
-      if (data == null || data.getState() != GameManager.PlayerState.INGAME) return;
+      if (data == null || data.getState() != PlayerState.INGAME) return;
 
       // 处理神弓的爆炸箭效果
       if (type == SpecialItemManager.SpecialItemType.SPECIAL_BOW) {
@@ -646,7 +647,7 @@ public class PlayerListener implements Listener {
       }
 
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
-      if (data == null || data.getState() != GameManager.PlayerState.INGAME) {
+      if (data == null || data.getState() != PlayerState.INGAME) {
          return;
       }
 

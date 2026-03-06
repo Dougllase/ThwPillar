@@ -3,6 +3,7 @@ package com.newpillar.dialog;
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
 import com.newpillar.game.PlayerData;
+import com.newpillar.game.PlayerState;
 import com.newpillar.game.StatisticsSystem;
 import com.newpillar.game.StatisticsSystem.PlayerStatistics;
 
@@ -194,7 +195,7 @@ public class PlayerStatisticsDialog extends AbstractDialog {
       if (playerData == null) {
          return "未知";
       } else {
-         GameManager.PlayerState state = playerData.getState();
+         PlayerState state = playerData.getState();
 
          return switch (state) {
             case LOBBY -> "大厅";

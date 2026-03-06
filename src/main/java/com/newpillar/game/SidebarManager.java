@@ -286,7 +286,7 @@ public class SidebarManager {
          }
 
          if (board != null) {
-            if (this.gameManager.getGameStatus() == GameManager.GameStatus.PLAYING) {
+            if (this.gameManager.getGameStatus() == GameStatus.PLAYING) {
                this.updateInGameSidebar(board);
             } else {
                this.updateLobbySidebar(board);

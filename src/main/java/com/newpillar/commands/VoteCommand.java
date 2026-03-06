@@ -2,6 +2,7 @@ package com.newpillar.commands;
 
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
+import com.newpillar.game.GameStatus;
 import com.newpillar.game.RuleType;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -46,7 +47,7 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
         GameManager gameManager = this.plugin.getGameManager();
 
         // 检查游戏状态
-        if (gameManager.getGameStatus() != GameManager.GameStatus.LOBBY) {
+        if (gameManager.getGameStatus() != GameStatus.LOBBY) {
             player.sendMessage("§c只能在游戏大厅中使用投票命令！");
             return true;
         }
