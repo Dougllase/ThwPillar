@@ -162,16 +162,16 @@ public class EventSystem {
       } else {
          // 检查国王游戏事件是否已触发
          if (this.kingGameTriggered) {
-            // 已触发过国王游戏，从34个事件中选择（排除国王游戏）
+            // 已触发过国王游戏，从35个事件中选择（排除国王游戏，包含MADE_IN_HEAVEN）
             int eventId;
             do {
-               eventId = this.random.nextInt(34) + 1;
+               eventId = this.random.nextInt(35) + 1;
             } while (eventId == 17); // 17是国王游戏事件ID，跳过它
             eventType = EventType.getById(eventId);
             this.plugin.getLogger().info("[事件系统] 国王游戏已触发，跳过事件17");
          } else {
-            // 还未触发国王游戏，从35个事件中随机选择
-            int eventId = this.random.nextInt(35) + 1;
+            // 还未触发国王游戏，从36个事件中随机选择（包含MADE_IN_HEAVEN）
+            int eventId = this.random.nextInt(36) + 1;
             eventType = EventType.getById(eventId);
             
             // 如果选中国王游戏，标记为已触发

@@ -189,7 +189,7 @@ public class GameManager {
    private void loadConfig() {
       this.lootTimer = this.plugin.getConfig().getInt("timers.loot_time", 30);
       this.eventTimer = this.plugin.getConfig().getInt("timers.event_time", 60);
-      this.borderTimer = this.plugin.getConfig().getInt("timers.border_time", 51); // 首次收缩前等待51秒
+      this.borderTimer = this.plugin.getConfig().getInt("timers.border_time", 600); // 首次收缩前等待时间（默认600秒=10分钟）
       this.beginTimer = this.plugin.getConfig().getInt("timers.begin_time", 10);
       this.autoStartEnabled = this.plugin.getConfig().getBoolean("game.auto-start-enabled", true); // 默认启用自动开始
       this.autoStartMinPlayers = this.plugin.getConfig().getInt("game.auto-start-min-players", 2); // 默认最少2人
