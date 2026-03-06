@@ -122,7 +122,7 @@ public class CustomAdvancementManager {
         registerAdvancement("rocket_boots", "火箭靴", "获得火箭靴", Material.LEATHER_BOOTS, "task", "root");
         registerAdvancement("running_shoes", "跑鞋", "获得跑鞋", Material.GOLDEN_BOOTS, "task", "root");
         registerAdvancement("witch_apple", "女巫苹果", "获得女巫苹果", Material.APPLE, "task", "root");
-        registerAdvancement("yanpai", "炎派", "获得炎派", Material.FIRE_CHARGE, "task", "root");
+        registerAdvancement("yanpai", "验牌", "获得验牌", Material.FIRE_CHARGE, "task", "root");
         registerAdvancement("clock", "时钟", "获得时钟", Material.CLOCK, "task", "root");
         registerAdvancement("hongbao", "红包", "获得红包", Material.PAPER, "task", "root");
         registerAdvancement("hypnosis_app", "催眠APP", "获得催眠APP", Material.ENDER_EYE, "task", "root");

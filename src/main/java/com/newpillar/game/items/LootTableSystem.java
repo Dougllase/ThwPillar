@@ -674,7 +674,7 @@ public class LootTableSystem {
         ItemStack item = new ItemStack(Material.FIRE_CHARGE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName("§c§l炎派");
+            meta.setDisplayName("§c§l验牌");
             meta.setLore(Arrays.asList("§7火焰之力！", "§e右键使用"));
             setCustomItemId(meta, "yanpai");
             item.setItemMeta(meta);

@@ -33,7 +33,7 @@ public enum AchievementType {
     ROCKET_BOOTS(22, "火箭靴", "获得火箭靴", Material.LEATHER_BOOTS, "task"),
     RUNNING_SHOES(23, "跑鞋", "获得跑鞋", Material.GOLDEN_BOOTS, "task"),
     WITCH_APPLE(24, "女巫苹果", "获得女巫苹果", Material.APPLE, "task"),
-    YANPAI(25, "炎派", "获得炎派", Material.FIRE_CHARGE, "task"),
+    YANPAI(25, "验牌", "获得验牌", Material.FIRE_CHARGE, "task"),
     CLOCK(26, "时钟", "获得时钟", Material.CLOCK, "task"),
     HONGBAO(27, "红包", "获得红包", Material.PAPER, "task"),
     HYPNOSIS_APP(28, "催眠APP", "获得催眠APP", Material.ENDER_EYE, "task"),
