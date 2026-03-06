@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.enums;
 
 public enum EventType {
    // 事件名称、描述和颜色同步自 Lucky-Pillar 数据包

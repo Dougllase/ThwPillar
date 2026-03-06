@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.enums;
 
 /**
  * 游戏状态枚举

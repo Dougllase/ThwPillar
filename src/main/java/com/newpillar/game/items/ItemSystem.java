@@ -1,4 +1,14 @@
-package com.newpillar.game;
+package com.newpillar.game.items;
+
+import com.newpillar.game.enums.MapType;
+
+import com.newpillar.game.enums.GameStatus;
+
+import com.newpillar.game.enums.PlayerState;
+
+import com.newpillar.game.PlayerData;
+
+import com.newpillar.game.GameManager;
 
 import com.newpillar.NewPillar;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;

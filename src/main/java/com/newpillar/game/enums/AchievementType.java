@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.enums;
 
 import org.bukkit.Material;
 

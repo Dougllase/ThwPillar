@@ -3,9 +3,9 @@ package com.newpillar.dialog;
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
 import com.newpillar.game.PlayerData;
-import com.newpillar.game.PlayerState;
-import com.newpillar.game.StatisticsSystem;
-import com.newpillar.game.StatisticsSystem.PlayerStatistics;
+import com.newpillar.game.enums.PlayerState;
+import com.newpillar.game.data.StatisticsSystem;
+import com.newpillar.game.data.StatisticsSystem.PlayerStatistics;
 
 import java.util.*;
 

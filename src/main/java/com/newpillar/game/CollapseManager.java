@@ -1,5 +1,7 @@
 package com.newpillar.game;
 
+import com.newpillar.game.enums.GameStatus;
+
 import com.newpillar.NewPillar;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;

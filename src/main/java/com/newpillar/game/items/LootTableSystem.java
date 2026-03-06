@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.items;
 
 import com.google.gson.*;
 import com.newpillar.NewPillar;

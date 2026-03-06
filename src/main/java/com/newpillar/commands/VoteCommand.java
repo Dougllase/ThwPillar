@@ -2,8 +2,8 @@ package com.newpillar.commands;
 
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
-import com.newpillar.game.GameStatus;
-import com.newpillar.game.RuleType;
+import com.newpillar.game.enums.GameStatus;
+import com.newpillar.game.enums.RuleType;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;

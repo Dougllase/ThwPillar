@@ -1,5 +1,25 @@
 package com.newpillar;
 
+import com.newpillar.game.events.LuckyBlockSystem;
+
+import com.newpillar.game.items.LootTableSystem;
+
+import com.newpillar.game.advancements.AdvancementManager;
+
+import com.newpillar.game.advancements.AchievementSystem;
+
+import com.newpillar.game.items.SpecialItemManager;
+
+import com.newpillar.game.advancements.AdvancementGenerator;
+
+import com.newpillar.game.items.ItemEffectManager;
+
+import com.newpillar.game.items.VanillaItemManager;
+
+import com.newpillar.game.items.VanillaItemEffectManager;
+
+import com.newpillar.game.data.StatisticsSystem;
+
 import com.newpillar.commands.NewPillarCommand;
 import com.newpillar.database.DatabaseManager;
 import com.newpillar.dialog.DialogManager;

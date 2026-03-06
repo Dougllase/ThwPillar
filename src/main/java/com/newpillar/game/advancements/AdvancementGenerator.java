@@ -1,4 +1,6 @@
-package com.newpillar.game;
+package com.newpillar.game.advancements;
+
+import com.newpillar.game.enums.AchievementType;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

@@ -1,7 +1,7 @@
 package com.newpillar.dialog;
 
 import com.newpillar.NewPillar;
-import com.newpillar.game.RuleType;
+import com.newpillar.game.enums.RuleType;
 import org.bukkit.Material;
 
 public class RuleSelectionDialog extends AbstractDialog {

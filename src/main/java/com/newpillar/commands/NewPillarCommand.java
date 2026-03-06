@@ -1,10 +1,22 @@
 package com.newpillar.commands;
 
+import com.newpillar.game.map.MapRegion;
+
+import com.newpillar.game.events.EventSystem;
+
+import com.newpillar.game.items.LootTableSystem;
+
+import com.newpillar.game.advancements.AchievementSystem;
+
+import com.newpillar.game.items.SpecialItemManager;
+
+import com.newpillar.game.enums.RuleType;
+
 import com.newpillar.NewPillar;
-import com.newpillar.game.EventType;
+import com.newpillar.game.enums.EventType;
 import com.newpillar.game.GameManager;
-import com.newpillar.game.GameStatus;
-import com.newpillar.game.MapType;
+import com.newpillar.game.enums.GameStatus;
+import com.newpillar.game.enums.MapType;
 import com.newpillar.utils.StructureTemplate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -206,7 +218,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
          completions.add("list");
          completions.add("simulate");
          completions.addAll(
-            Arrays.stream(com.newpillar.game.SpecialItemManager.SpecialItemType.values())
+            Arrays.stream(com.newpillar.game.items.SpecialItemManager.SpecialItemType.values())
                .map(Enum::name)
                .filter(s -> s.startsWith(args[1].toUpperCase()))
                .toList()
@@ -491,7 +503,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
 
       if (itemName.equals("list")) {
          player.sendMessage("§6=== 特殊物品列表 ===");
-         for (com.newpillar.game.SpecialItemManager.SpecialItemType type : com.newpillar.game.SpecialItemManager.SpecialItemType.values()) {
+         for (com.newpillar.game.items.SpecialItemManager.SpecialItemType type : com.newpillar.game.items.SpecialItemManager.SpecialItemType.values()) {
             player.sendMessage("§f" + type.name() + " §7- " + type.getDisplayName() + " §8[" + type.getCategory() + "]");
          }
          player.sendMessage("");
@@ -561,8 +573,8 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
       }
 
       try {
-         com.newpillar.game.SpecialItemManager.SpecialItemType type = 
-            com.newpillar.game.SpecialItemManager.SpecialItemType.valueOf(itemName.toUpperCase());
+         com.newpillar.game.items.SpecialItemManager.SpecialItemType type = 
+            com.newpillar.game.items.SpecialItemManager.SpecialItemType.valueOf(itemName.toUpperCase());
          org.bukkit.inventory.ItemStack item = this.plugin.getSpecialItemManager().createSpecialItem(type);
          player.getInventory().addItem(item);
          player.sendMessage("§a已获得 §f" + type.getDisplayName() + " §a!");
@@ -581,7 +593,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
    /**
     * 获取物品对应的成就ID
     */
-   private String getAchievementIdForItem(com.newpillar.game.SpecialItemManager.SpecialItemType type) {
+   private String getAchievementIdForItem(com.newpillar.game.items.SpecialItemManager.SpecialItemType type) {
       return switch (type) {
          case KNOCKBACK_STICK -> "knockback_stick";
          case BONES_WITHOUT_CHICKEN_FEET -> "bones_without_chicken_feet";
@@ -616,7 +628,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
    private void handleRuleCommand(Player player, String[] args, GameManager gameManager) {
       if (args.length < 2) {
          // 显示当前可投票的规则列表
-         java.util.List<com.newpillar.game.RuleType> votingRules = gameManager.getVotingRules();
+         java.util.List<com.newpillar.game.enums.RuleType> votingRules = gameManager.getVotingRules();
          if (votingRules == null || votingRules.isEmpty()) {
             player.sendMessage("§c当前没有进行中的规则投票！");
             return;
@@ -626,7 +638,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
          player.sendMessage("§e§l        规则投票");
          player.sendMessage("");
          for (int i = 0; i < votingRules.size(); i++) {
-            com.newpillar.game.RuleType rule = votingRules.get(i);
+            com.newpillar.game.enums.RuleType rule = votingRules.get(i);
             player.sendMessage("§" + rule.getColor() + "§l[" + (i + 1) + "] " + rule.getName());
             player.sendMessage("§7" + rule.getDescription());
             player.sendMessage("");

@@ -1,13 +1,19 @@
 package com.newpillar.listeners;
 
+import com.newpillar.game.items.LootTableSystem;
+
+import com.newpillar.game.advancements.AchievementSystem;
+
+import com.newpillar.game.data.StatisticsSystem;
+
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
-import com.newpillar.game.ItemEffectManager;
+import com.newpillar.game.items.ItemEffectManager;
 import com.newpillar.game.PlayerData;
-import com.newpillar.game.PlayerState;
-import com.newpillar.game.SpecialItemManager;
-import com.newpillar.game.VanillaItemManager;
-import com.newpillar.game.VanillaItemEffectManager;
+import com.newpillar.game.enums.PlayerState;
+import com.newpillar.game.items.SpecialItemManager;
+import com.newpillar.game.items.VanillaItemManager;
+import com.newpillar.game.items.VanillaItemEffectManager;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +51,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
-import com.newpillar.game.MapType;
+import com.newpillar.game.enums.MapType;
 import java.util.Random;
 
 public class PlayerListener implements Listener {

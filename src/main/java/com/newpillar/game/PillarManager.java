@@ -1,5 +1,7 @@
 package com.newpillar.game;
 
+import com.newpillar.game.enums.MapType;
+
 import com.newpillar.NewPillar;
 import java.util.ArrayList;
 import java.util.Arrays;

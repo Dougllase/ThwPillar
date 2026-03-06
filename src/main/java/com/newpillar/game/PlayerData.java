@@ -1,5 +1,7 @@
 package com.newpillar.game;
 
+import com.newpillar.game.enums.PlayerState;
+
 import org.bukkit.Location;
 import java.util.UUID;
 

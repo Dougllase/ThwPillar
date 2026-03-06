@@ -1,4 +1,8 @@
-package com.newpillar.game;
+package com.newpillar.game.map;
+
+import com.newpillar.game.enums.MapType;
+
+import com.newpillar.game.GameManager;
 
 import com.newpillar.NewPillar;
 import org.bukkit.Bukkit;

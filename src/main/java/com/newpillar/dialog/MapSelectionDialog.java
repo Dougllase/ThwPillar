@@ -2,7 +2,7 @@ package com.newpillar.dialog;
 
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
-import com.newpillar.game.MapType;
+import com.newpillar.game.enums.MapType;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 

@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.events;
 
 import com.newpillar.NewPillar;
 import org.bukkit.*;

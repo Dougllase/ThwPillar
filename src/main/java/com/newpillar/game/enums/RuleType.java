@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.enums;
 
 public enum RuleType {
     // 规则名称和描述同步自 Lucky-Pillar 数据包

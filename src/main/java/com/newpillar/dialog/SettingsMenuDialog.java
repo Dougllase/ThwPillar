@@ -1,5 +1,7 @@
 package com.newpillar.dialog;
 
+import com.newpillar.game.enums.MapType;
+
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
 import org.bukkit.Material;

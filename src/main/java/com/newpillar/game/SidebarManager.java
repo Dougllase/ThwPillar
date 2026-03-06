@@ -1,5 +1,15 @@
 package com.newpillar.game;
 
+import com.newpillar.game.events.EventSystem;
+
+import com.newpillar.game.enums.MapType;
+
+import com.newpillar.game.enums.RuleType;
+
+import com.newpillar.game.enums.EventType;
+
+import com.newpillar.game.enums.GameStatus;
+
 import com.newpillar.NewPillar;
 import fr.mrmicky.fastboard.FastBoard;
 import java.util.Map;

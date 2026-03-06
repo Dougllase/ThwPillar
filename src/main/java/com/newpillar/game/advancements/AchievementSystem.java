@@ -1,4 +1,6 @@
-package com.newpillar.game;
+package com.newpillar.game.advancements;
+
+import com.newpillar.game.enums.AchievementType;
 
 import com.newpillar.NewPillar;
 import org.bukkit.Bukkit;

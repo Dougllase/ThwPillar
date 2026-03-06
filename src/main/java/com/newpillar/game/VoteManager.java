@@ -1,5 +1,11 @@
 package com.newpillar.game;
 
+import com.newpillar.game.enums.MapType;
+
+import com.newpillar.game.enums.RuleType;
+
+import com.newpillar.game.enums.PlayerState;
+
 import com.newpillar.NewPillar;
 import org.bukkit.entity.Player;
 

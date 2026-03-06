@@ -1,4 +1,6 @@
-package com.newpillar.game;
+package com.newpillar.game.map;
+
+import com.newpillar.game.enums.MapType;
 
 import java.util.ArrayList;
 import java.util.List;

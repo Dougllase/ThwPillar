@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.data;
 
 import com.newpillar.NewPillar;
 import com.newpillar.database.DatabaseManager;
@@ -354,34 +354,34 @@ public class StatisticsSystem {
         private final UUID uuid;
         
         // 本局游戏统计
-        int kills = 0;
-        int deaths = 0;
-        double damageDealt = 0;
-        double damageTaken = 0;
-        int blocksPlaced = 0;
-        int blocksBroken = 0;
-        int itemsLooted = 0;
+        public int kills = 0;
+        public int deaths = 0;
+        public double damageDealt = 0;
+        public double damageTaken = 0;
+        public int blocksPlaced = 0;
+        public int blocksBroken = 0;
+        public int itemsLooted = 0;
         
         // 历史总计
-        int totalKills = 0;
-        int totalDeaths = 0;
-        int totalWins = 0;
-        int totalGamesPlayed = 0;
+        public int totalKills = 0;
+        public int totalDeaths = 0;
+        public int totalWins = 0;
+        public int totalGamesPlayed = 0;
         
         // 新增统计项
-        int highestWinStreak = 0;      // 最高连胜
-        int currentWinStreak = 0;      // 当前连胜
-        double totalDamageDealt = 0;   // 总造成伤害
-        double totalDamageTaken = 0;   // 总受到伤害
-        int totalBlocksBroken = 0;     // 总破坏方块
-        int totalBlocksPlaced = 0;     // 总放置方块
-        int totalItemsLooted = 0;      // 总获取物品
+        public int highestWinStreak = 0;      // 最高连胜
+        public int currentWinStreak = 0;      // 当前连胜
+        public double totalDamageDealt = 0;   // 总造成伤害
+        public double totalDamageTaken = 0;   // 总受到伤害
+        public int totalBlocksBroken = 0;     // 总破坏方块
+        public int totalBlocksPlaced = 0;     // 总放置方块
+        public int totalItemsLooted = 0;      // 总获取物品
         
         PlayerStatistics(UUID uuid) {
             this.uuid = uuid;
         }
         
-        void resetGameStats() {
+        public void resetGameStats() {
             kills = 0;
             deaths = 0;
             damageDealt = 0;

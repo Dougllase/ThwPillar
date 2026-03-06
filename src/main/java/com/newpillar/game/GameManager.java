@@ -1,5 +1,17 @@
 package com.newpillar.game;
 
+import com.newpillar.game.enums.MapType;
+import com.newpillar.game.enums.RuleType;
+import com.newpillar.game.enums.PlayerState;
+import com.newpillar.game.enums.GameStatus;
+import com.newpillar.game.items.ItemSystem;
+import com.newpillar.game.events.EventSystem;
+import com.newpillar.game.map.MapRegion;
+import com.newpillar.game.map.MapTemplateManager;
+import com.newpillar.game.data.StatisticsSystem;
+import com.newpillar.game.map.MapTemplate;
+import com.newpillar.game.map.TemplateMapGenerator;
+
 import com.newpillar.NewPillar;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.ArrayList;
@@ -33,7 +45,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
-import com.newpillar.game.StatisticsSystem.PlayerStatistics;
+import com.newpillar.game.data.StatisticsSystem.PlayerStatistics;
 
 public class GameManager {
    private final NewPillar plugin;

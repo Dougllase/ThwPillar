@@ -1,4 +1,4 @@
-package com.newpillar.game;
+package com.newpillar.game.items;
 
 import com.newpillar.NewPillar;
 import net.kyori.adventure.bossbar.BossBar;

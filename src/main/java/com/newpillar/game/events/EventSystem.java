@@ -1,4 +1,10 @@
-package com.newpillar.game;
+package com.newpillar.game.events;
+
+import com.newpillar.game.enums.EventType;
+
+import com.newpillar.game.enums.GameStatus;
+
+import com.newpillar.game.GameManager;
 
 import com.newpillar.NewPillar;
 import com.newpillar.utils.DebugLogger;
