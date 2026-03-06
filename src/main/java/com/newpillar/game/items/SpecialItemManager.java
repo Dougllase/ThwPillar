@@ -42,6 +42,8 @@ public class SpecialItemManager {
         FLY_MACE("fly_mace", "让你飞起来", Material.MACE, "攻击类"),
         SPECIAL_BOW("special_bow", "神弓", Material.BOW, "攻击类"),
         SPECIAL_CROSSBOW("special_crossbow", "神弩", Material.CROSSBOW, "攻击类"),
+        LIFE_STEAL_SWORD("life_steal_sword", "生命偷取剑", Material.GOLDEN_SWORD, "攻击类"),
+        POISON_DAGGER("poison_dagger", "剧毒匕首", Material.IRON_SWORD, "攻击类"),
 
         // 辅助类
         FEATHER("feather", "羽毛", Material.FEATHER, "辅助类"),
@@ -49,6 +51,8 @@ public class SpecialItemManager {
         PIXIE("pixie", "皮鞋", Material.LEATHER_BOOTS, "辅助类"),
         ROCKET_BOOTS("rocket_boots", "火箭靴", Material.DIAMOND_BOOTS, "辅助类"),
         RUNNING_SHOES("running_shoes", "跑鞋", Material.IRON_BOOTS, "辅助类"),
+        GRAVITY_BOOTS("gravity_boots", "重力靴", Material.NETHERITE_BOOTS, "辅助类"),
+        SHIELD_GENERATOR("shield_generator", "护盾发生器", Material.SHIELD, "辅助类"),
 
         // 特殊类
         WITCH_APPLE("witch_apple", "女巫的红苹果", Material.APPLE, "特殊类"),
@@ -59,7 +63,8 @@ public class SpecialItemManager {
         HONGBAO("hongbao", "红包", Material.NETHER_BRICK, "特殊类"),
         HYPNOSIS_APP("hypnosis_app", "催眠 app", Material.IRON_INGOT, "特殊类"),
         EX_CURRY_STICK("ex_curry_stick", "『EX咖喱棒』", Material.DIAMOND_SWORD, "特殊类"),
-        SPAWNER("spawner", "刷怪笼", Material.SPAWNER, "特殊类");
+        SPAWNER("spawner", "刷怪笼", Material.SPAWNER, "特殊类"),
+        THE_WORLD("the_world", "砸瓦鲁多", Material.BELL, "特殊类");
 
         private final String id;
         private final String displayName;
@@ -271,6 +276,45 @@ public class SpecialItemManager {
                     meta.addEnchant(Enchantment.QUICK_CHARGE, 3, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
                     // 不隐藏附魔，让真实附魔显示
+                }
+                case THE_WORLD -> {
+                    // 砸瓦鲁多 - 钟，冷却1分30秒，右键冻结周围玩家9秒
+                    lore.add(Component.text("The World!!!").color(TextColor.color(0xFFD700)).decorate(TextDecoration.BOLD));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("冷却时间：1分30秒").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("右键冻结周围玩家9秒").color(TextColor.color(0x55FFFF)));
+                }
+                case GRAVITY_BOOTS -> {
+                    // 重力靴 - 下界合金靴，免疫击退，增加下落速度
+                    lore.add(Component.text("风雨不动安如山").color(TextColor.color(0x55FFFF)));
+                    // 击退抗性
+                    meta.addAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,
+                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_knockback", 1.0,
+                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.FEET));
+                    // 增加重力（通过移动速度减少来模拟）
+                    meta.addAttributeModifier(Attribute.MOVEMENT_SPEED,
+                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_speed", -0.1,
+                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.FEET));
+                }
+                case LIFE_STEAL_SWORD -> {
+                    // 生命偷取剑 - 金剑，造成伤害的50%转化为生命值
+                    lore.add(Component.text("大血条转移术").color(TextColor.color(0xFF5555)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("造成伤害的50%转化为生命值").color(TextColor.color(0xAAAAAA)));
+                }
+                case SHIELD_GENERATOR -> {
+                    // 护盾发生器 - 盾牌，冷却1分钟，生成5秒可吸收8点生命值的护盾
+                    lore.add(Component.text("安如磐石").color(TextColor.color(0x55FFFF)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("冷却时间：1分钟").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("右键生成5秒可吸收8点生命值的护盾").color(TextColor.color(0x55FFFF)));
+                    lore.add(Component.text("并小幅提升抗击退能力").color(TextColor.color(0xAAAAAA)));
+                }
+                case POISON_DAGGER -> {
+                    // 剧毒匕首 - 铁剑，攻击附加3秒中毒效果
+                    lore.add(Component.text("是的，这剑有毒").color(TextColor.color(0x55FF55)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("攻击附加3秒中毒效果").color(TextColor.color(0xAAAAAA)));
                 }
             }
 

@@ -33,11 +33,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
@@ -708,6 +711,40 @@ public class PlayerListener implements Listener {
          player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
          if (hookLoc != null) {
             player.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, hookLoc, 10, 0.5, 0.5, 0.5, 0);
+         }
+      }
+   }
+
+   @EventHandler
+   public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+      // 生命偷取剑 - 造成伤害的50%转化为生命值
+      if (event.getDamager() instanceof Player attacker) {
+         ItemStack weapon = attacker.getInventory().getItemInMainHand();
+         if (weapon != null && weapon.hasItemMeta()) {
+            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
+            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
+            
+            if ("life_steal_sword".equals(itemId)) {
+               double damage = event.getDamage();
+               double healAmount = damage * 0.5;
+               double newHealth = Math.min(attacker.getHealth() + healAmount, attacker.getMaxHealth());
+               attacker.setHealth(newHealth);
+               // 播放生命恢复音效
+               attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
+            }
+         }
+      }
+      
+      // 剧毒匕首 - 攻击附加3秒中毒效果
+      if (event.getDamager() instanceof Player attacker) {
+         ItemStack weapon = attacker.getInventory().getItemInMainHand();
+         if (weapon != null && weapon.hasItemMeta()) {
+            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
+            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
+            
+            if ("poison_dagger".equals(itemId) && event.getEntity() instanceof org.bukkit.entity.LivingEntity target) {
+               target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 60, 0, false, false));
+            }
          }
       }
    }

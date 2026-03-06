@@ -88,9 +88,16 @@ public class ItemEffectManager {
         // 皮鞋 - 1分钟播报冷却
         cooldownTimes.put(SpecialItemManager.SpecialItemType.PIXIE, 60000L);
         
+        // 砸瓦鲁多 - 1分30秒冷却
+        cooldownTimes.put(SpecialItemManager.SpecialItemType.THE_WORLD, 90000L);
+        
+        // 护盾发生器 - 1分钟冷却
+        cooldownTimes.put(SpecialItemManager.SpecialItemType.SHIELD_GENERATOR, 60000L);
+        
         // 注意：以下物品在数据包中无冷却定义
         // KNOCKBACK_STICK, SPEAR, CARD, IRON_SWORD, MEOW_AXE, BIG_FLAME_ROD
         // ROCKET_BOOTS, RUNNING_SHOES, FEATHER, INVISIBLE_SAND, GEDIao
+        // GRAVITY_BOOTS, LIFE_STEAL_SWORD, POISON_DAGGER
     }
     
     /**
@@ -453,6 +460,14 @@ public class ItemEffectManager {
             case INVISIBLE_SAND -> grantItemAchievement(player, "invisible_scarf");
             case FEATHER -> grantItemAchievement(player, "feather");
             case GODLY_PICKAXE -> grantItemAchievement(player, "godly_pickaxe");
+            case THE_WORLD -> {
+                useTheWorld(player);
+                grantItemAchievement(player, "the_world");
+            }
+            case SHIELD_GENERATOR -> {
+                useShieldGenerator(player);
+                grantItemAchievement(player, "shield_generator");
+            }
         }
 
         // 消耗物品（从玩家背包中移除一个）
@@ -475,7 +490,9 @@ public class ItemEffectManager {
                  HYPNOSIS_APP, // 催眠APP
                  SPAWNER, // 刷怪笼
                  BRUCE, // 布鲁斯
-                 EX_CURRY_STICK -> true; // EX咖喱棒
+                 EX_CURRY_STICK, // EX咖喱棒
+                 THE_WORLD, // 砸瓦鲁多
+                 SHIELD_GENERATOR -> true; // 护盾发生器
             default -> false;
         };
     }
@@ -1049,5 +1066,62 @@ public class ItemEffectManager {
         }
         activeEffects.clear();
         cooldowns.clear();
+    }
+    
+    // ==================== 新物品效果实现 ====================
+    
+    /**
+     * 砸瓦鲁多 - 冻结周围玩家9秒
+     */
+    private void useTheWorld(Player player) {
+        player.sendMessage(ChatColor.GOLD + "The World!!!");
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BELL_USE, 1.0f, 1.0f);
+        
+        // 冻结周围10格内的所有玩家9秒（180 ticks）
+        for (Entity entity : player.getNearbyEntities(10, 10, 10)) {
+            if (entity instanceof Player target && !target.equals(player)) {
+                target.sendMessage(ChatColor.GRAY + "时间停止了...");
+                // 缓慢255级使玩家无法移动
+                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 180, 255, false, false));
+                // 挖掘疲劳使玩家无法挖掘
+                target.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 180, 255, false, false));
+                // 跳跃提升-128使玩家无法跳跃
+                target.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 180, 128, false, false));
+                // 虚弱使玩家无法攻击
+                target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 180, 255, false, false));
+            }
+        }
+        
+        // 9秒后提示恢复
+        Bukkit.getRegionScheduler().runDelayed(plugin, player.getLocation(), new java.util.function.Consumer<io.papermc.paper.threadedregions.scheduler.ScheduledTask>() {
+            @Override
+            public void accept(io.papermc.paper.threadedregions.scheduler.ScheduledTask task) {
+                player.sendMessage(ChatColor.GREEN + "时间开始流动...");
+            }
+        }, 180L);
+    }
+    
+    /**
+     * 护盾发生器 - 生成5秒可吸收8点生命值的护盾
+     */
+    private void useShieldGenerator(Player player) {
+        player.sendMessage(ChatColor.AQUA + "护盾已生成！");
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.0f);
+        
+        // 给予玩家吸收8点生命值（4颗心）
+        player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 100, 3, false, false));
+        // 给予玩家抗性提升，小幅提升抗击退能力
+        player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 100, 0, false, false));
+        
+        // 5秒后提示护盾消失
+        Bukkit.getRegionScheduler().runDelayed(plugin, player.getLocation(), new java.util.function.Consumer<io.papermc.paper.threadedregions.scheduler.ScheduledTask>() {
+            @Override
+            public void accept(io.papermc.paper.threadedregions.scheduler.ScheduledTask task) {
+                if (player.isOnline()) {
+                    player.sendMessage(ChatColor.GRAY + "护盾已消失");
+                    player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 1.0f);
+                }
+            }
+        }, 100L);
     }
 }
