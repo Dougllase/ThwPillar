@@ -333,9 +333,11 @@ public class PlayerListener implements Listener {
          // 以下物品不取消事件，让它们正常工作：
          // - 弓弩类：正常拉弓/装填，特殊效果在 EntityShootBowEvent 中处理
          // - 工具类（神镐）：正常挖掘方块
+         // - 长矛：使用原版突进功能
          if (type == SpecialItemManager.SpecialItemType.SPECIAL_BOW ||
              type == SpecialItemManager.SpecialItemType.SPECIAL_CROSSBOW ||
-             type == SpecialItemManager.SpecialItemType.GODLY_PICKAXE) {
+             type == SpecialItemManager.SpecialItemType.GODLY_PICKAXE ||
+             type == SpecialItemManager.SpecialItemType.SPEAR) {
             return;
          }
 
