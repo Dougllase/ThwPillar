@@ -49,7 +49,7 @@ public class DatabaseManager {
         try {
             // 配置HikariCP连接池
             HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
+            config.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true&allowPublicKeyRetrieval=true",
                     host, port, database));
             config.setUsername(username);
             config.setPassword(password);
