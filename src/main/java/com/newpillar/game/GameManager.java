@@ -350,7 +350,7 @@ public class GameManager {
          Location center = this.mapRegion.getCenter();
          org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
          worldBorder.setCenter(center);
-         worldBorder.setSize(100.0); // 初始边界大小 100x100
+         worldBorder.setSize(100.0); // 初始边界大小 100x100（从100开始收缩）
          this.plugin.getLogger().info("世界边界已设置：中心(" + center.getBlockX() + ", " + center.getBlockZ() + "), 大小: 100");
       }
 
@@ -533,27 +533,26 @@ public class GameManager {
    }
 
    /**
-    * 边界收缩周期 - 优化为10分钟完成所有收缩
-    * 初始大小80，每次减少5，最终到10，然后平台崩溃
-    * 从80->75->70->...->10，共14次收缩，每次间隔60秒，总计约14分钟
-    * 为了控制在10分钟内，调整为每次间隔45秒
+    * 边界收缩周期 - 优化为更快节奏
+    * 初始大小100，每次减少10，最终到30，然后平台崩溃
+    * 从100->90->80->...->30，共7次收缩，每次间隔20秒
     */
    private void runBorderShrinkCycle(World world) {
       org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
       double currentSize = worldBorder.getSize();
       Location centerLoc = worldBorder.getCenter();
 
-      // 如果边界大于等于最小尺寸，继续收缩
-      if (currentSize >= 10.0) {
-         // 减少5格，用时30秒（动画时间）
-         worldBorder.setSize(currentSize - 5, 30L);
-         this.broadcastMessage("§6§l[幸运之柱] §c边界开始收缩！");
-         this.debugLogger.debug("[Border] Shrink: " + currentSize + " -> " + (currentSize - 5));
+      // 如果边界大于等于最小尺寸(30)，继续收缩
+      if (currentSize >= 30.0) {
+         // 减少10格，用时15秒（动画时间）
+         worldBorder.setSize(currentSize - 10, 15L);
+         this.broadcastMessage("§6§l[幸运之柱] §c边界开始收缩！当前大小: " + (int)currentSize + " -> " + (int)(currentSize - 10));
+         this.debugLogger.debug("[Border] Shrink: " + currentSize + " -> " + (currentSize - 10));
 
-         // 设置倒计时为45秒（30秒动画 + 15秒间隔），总时间约10分钟
-         this.borderShrinkCountdown = 45;
+         // 设置倒计时为20秒（15秒动画 + 5秒间隔）
+         this.borderShrinkCountdown = 20;
          
-         // 启动倒计时任务，45秒后再次收缩
+         // 启动倒计时任务，20秒后再次收缩
          this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
             @Override
             public void accept(ScheduledTask scheduledTask) {
@@ -573,76 +572,128 @@ public class GameManager {
             }
          }, 20L, 20L);
       } else {
-         // 边界小于10格，触发平台崩溃
-         this.startPlatformCollapse(world);
+         // 边界小于30格，触发平台崩溃（半径缩小模式）
+         this.startPlatformCollapseRadiusMode(world);
       }
    }
 
    /**
-    * 平台崩溃机制 - 优化：1分钟内从外向内依次破坏方块
+    * 平台崩溃机制 - 半径缩小模式
+    * 以地图中心为圆心，按半径从大到小依次破坏方块
+    * 第1轮：91格外 → 第2轮：61格外 → 第3轮：31格外 → 第4轮：逐格缩小直至0
     */
-   private void startPlatformCollapse(World world) {
+   private void startPlatformCollapseRadiusMode(World world) {
       if (this.collapseTimes >= 4) {
-         return; // 最多崩溃4次
+         return; // 最多4轮
       }
 
       this.collapseTimes++;
-      this.broadcastMessage("§6§l[幸运之柱] §c平台开始崩溃！");
-      this.debugLogger.debug("平台崩溃第 " + this.collapseTimes + " 次");
+      this.broadcastMessage("§6§l[幸运之柱] §c平台开始崩溃！第 " + this.collapseTimes + "/4 轮");
+      this.debugLogger.debug("平台崩溃（半径模式）第 " + this.collapseTimes + " 次");
 
-      // 根据崩溃次数删除不同区域的方块
-      // 从外向内：第1次最外层，第4次最内层
-      int minY, maxY;
+      // 定义每轮的半径范围
+      int outerRadius, innerRadius;
+      boolean isFinalRound = false;
       switch (this.collapseTimes) {
-         case 1 -> { minY = 91; maxY = 120; } // 最外层
-         case 2 -> { minY = 61; maxY = 90; }
-         case 3 -> { minY = 31; maxY = 60; }
-         case 4 -> { minY = 0; maxY = 30; } // 最内层
+         case 1 -> { 
+            outerRadius = 100; 
+            innerRadius = 91; 
+            this.broadcastMessage("§c§l91格半径外的方块开始消失！");
+         }
+         case 2 -> { 
+            outerRadius = 91; 
+            innerRadius = 61; 
+            this.broadcastMessage("§c§l61-91格半径的方块开始消失！");
+         }
+         case 3 -> { 
+            outerRadius = 61; 
+            innerRadius = 31; 
+            this.broadcastMessage("§c§l31-61格半径的方块开始消失！");
+         }
+         case 4 -> { 
+            outerRadius = 31; 
+            innerRadius = 0; 
+            isFinalRound = true;
+            this.broadcastMessage("§c§l最后阶段！平台将从外向内逐格崩溃！");
+         }
          default -> { return; }
       }
 
-      // 计算每个区域需要的时间（1分钟/4次 = 15秒/次）
-      int collapseDuration = 15; // 15秒完成本次崩溃
-      int totalBlocks = (25 - (-25) + 1) * (maxY - minY + 1) * (25 - (-25) + 1); // 约25000个方块
-      int blocksPerTick = (int) Math.ceil(totalBlocks / (collapseDuration * 20)); // 每tick破坏的方块数
+      Location centerLoc = new Location(world, 0, 0, 0);
       
-      this.debugLogger.debug("平台崩溃：Y=" + minY + "-" + maxY + "，破坏速度：" + blocksPerTick + "方块/tick");
-
-      // 使用Folia调度器分批破坏方块
-      Location centerLoc = new Location(world, 0, minY, 0);
-      int[] progress = {0}; // 使用数组来跟踪进度
-      int xStart = -25, zStart = -25;
-      
-      this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
-         // 破坏一批方块
-         int blocksBroken = 0;
-         for (int x = xStart; x <= 25 && blocksBroken < blocksPerTick; x++) {
-            for (int z = zStart; z <= 25 && blocksBroken < blocksPerTick; z++) {
-               for (int y = minY; y <= maxY && blocksBroken < blocksPerTick; y++) {
-                  world.getBlockAt(x, y, z).setType(Material.AIR);
-                  blocksBroken++;
+      if (!isFinalRound) {
+         // 前3轮：直接破坏指定半径范围内的所有方块
+         int blocksPerTick = 500; // 每tick破坏500个方块
+         int[] currentRadius = {outerRadius};
+         
+         this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
+            int blocksBroken = 0;
+            int radius = currentRadius[0];
+            
+            // 在当前半径层破坏方块（整层Y轴）
+            for (int x = -radius; x <= radius && blocksBroken < blocksPerTick; x++) {
+               for (int z = -radius; z <= radius && blocksBroken < blocksPerTick; z++) {
+                  // 检查是否在圆环范围内
+                  double distance = Math.sqrt(x * x + z * z);
+                  if (distance >= innerRadius && distance < outerRadius) {
+                     // 破坏该位置的所有Y层方块
+                     for (int y = -64; y <= 320; y++) {
+                        world.getBlockAt(x, y, z).setType(Material.AIR);
+                     }
+                     blocksBroken++;
+                  }
                }
             }
-         }
-         
-         progress[0] += blocksBroken;
-         
-         // 检查是否完成
-         if (progress[0] >= totalBlocks) {
-            scheduledTask.cancel();
-            this.debugLogger.debug("平台崩溃完成：Y=" + minY + "-" + maxY);
             
-            // 如果还有更多崩溃次数，继续下一轮
-            if (this.collapseTimes < 4 && this.gameStatus == GameManager.GameStatus.PLAYING) {
-               // 等待1分钟后再开始下一轮
-               Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, task -> {
-                  if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
-                     GameManager.this.runBorderShrinkCycle(world);
-                  }
-               }, 60L * 20L);
+            currentRadius[0]--;
+            
+            // 检查是否完成本轮
+            if (currentRadius[0] < innerRadius || this.gameStatus != GameManager.GameStatus.PLAYING) {
+               scheduledTask.cancel();
+               this.debugLogger.debug("平台崩溃第 " + this.collapseTimes + " 轮完成");
+               
+               // 延迟后开始下一轮
+               if (this.collapseTimes < 4 && this.gameStatus == GameManager.GameStatus.PLAYING) {
+                  Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, task -> {
+                     if (GameManager.this.gameStatus == GameManager.GameStatus.PLAYING) {
+                        GameManager.this.startPlatformCollapseRadiusMode(world);
+                     }
+                  }, 100L); // 5秒间隔
+               }
             }
-         }
-      }, 0L, 1L); // 每tick执行一次
+         }, 0L, 1L); // 每tick执行
+         
+      } else {
+         // 第4轮：逐格缩小，一格一格地破坏
+         int[] currentRadius = {outerRadius}; // 从31格开始
+         
+         this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
+            int radius = currentRadius[0];
+            
+            // 破坏当前半径层的所有方块（整圈）
+            for (int x = -radius; x <= radius; x++) {
+               for (int z = -radius; z <= radius; z++) {
+                  double distance = Math.sqrt(x * x + z * z);
+                  // 在当前半径±0.5范围内
+                  if (distance >= radius - 0.5 && distance <= radius + 0.5) {
+                     for (int y = -64; y <= 320; y++) {
+                        world.getBlockAt(x, y, z).setType(Material.AIR);
+                     }
+                  }
+               }
+            }
+            
+            this.broadcastMessage("§c§l平台崩溃中... 剩余半径: " + radius + " 格");
+            currentRadius[0]--;
+            
+            // 检查是否完全崩溃
+            if (currentRadius[0] < 0 || this.gameStatus != GameManager.GameStatus.PLAYING) {
+               scheduledTask.cancel();
+               this.debugLogger.debug("平台完全崩溃！");
+               this.broadcastMessage("§c§l平台已完全崩溃！");
+            }
+         }, 0L, 10L); // 每0.5秒缩小一格
+      }
    }
 
    public void endGame() {
