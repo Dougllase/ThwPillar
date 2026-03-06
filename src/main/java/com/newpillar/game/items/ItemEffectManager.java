@@ -382,7 +382,10 @@ public class ItemEffectManager {
                 useKnockbackStick(player);
                 grantItemAchievement(player, "knockback_stick");
             }
-            case SPEAR -> useSpear(player);
+            case SPEAR -> {
+                // 长矛右键不触发技能，直接返回
+                return;
+            }
             case BONES_WITHOUT_CHICKEN_FEET -> {
                 useBone(player);
                 grantItemAchievement(player, "bones_without_chicken_feet");
@@ -667,22 +670,32 @@ public class ItemEffectManager {
             target.sendMessage(ChatColor.BLUE + "" + ChatColor.BOLD + "║  and needs to restart.         ║");
             target.sendMessage(ChatColor.BLUE + "" + ChatColor.BOLD + "╚════════════════════════════════╝");
 
-            // 禁锢效果（缓慢V）
-            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4));
-            target.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 100, 4));
-            target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
-            target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 100, 4));
+            // 禁锢效果：12秒失明、无法移动、无法跳跃
+            // 缓慢V（无法移动）
+            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 240, 4, false, false));
+            // 挖掘疲劳（无法挖掘）
+            target.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 240, 4, false, false));
+            // 失明
+            target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 240, 0, false, false));
+            // 虚弱（无法攻击）
+            target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 240, 4, false, false));
+            // 跳跃提升-128（无法跳跃）
+            target.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 240, 128, false, false));
 
             // 播放蓝屏音效
             target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
 
-            // 3秒后解除
-            Bukkit.getRegionScheduler().execute(plugin, target.getLocation(), () -> {
-                if (finalTarget.isOnline()) {
-                    finalTarget.sendMessage(ChatColor.GREEN + "系统已恢复！");
-                    finalTarget.playSound(finalTarget.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+            // 12秒后解除，提示恢复
+            final Player finalTarget2 = target;
+            Bukkit.getRegionScheduler().runDelayed(plugin, target.getLocation(), new java.util.function.Consumer<io.papermc.paper.threadedregions.scheduler.ScheduledTask>() {
+                @Override
+                public void accept(io.papermc.paper.threadedregions.scheduler.ScheduledTask task) {
+                    if (finalTarget2.isOnline()) {
+                        finalTarget2.sendMessage(ChatColor.GREEN + "系统已恢复！");
+                        finalTarget2.playSound(finalTarget2.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+                    }
                 }
-            });
+            }, 240L);
         } else {
             player.sendMessage(ChatColor.RED + "附近没有其他玩家！");
         }
@@ -750,32 +763,26 @@ public class ItemEffectManager {
     }
 
     private void useSpawner(Player player) {
-        // 刷怪笼：在玩家视线方向上放置刷怪笼并设置参数
+        // 刷怪笼：在玩家可触及的最远位置放置刷怪笼并设置参数
         player.sendMessage(ChatColor.RED + "召唤临时刷怪笼！");
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 1.0f);
 
-        // 在玩家视线方向上寻找合适位置放置刷怪笼
+        // 在玩家视线方向上寻找最远可放置位置（最远10格，可以凭空放置）
         Location eyeLoc = player.getEyeLocation();
         Vector direction = eyeLoc.getDirection();
         Location targetLoc = null;
         
-        // 向前寻找5格范围内的空气方块
-        for (int i = 1; i <= 5; i++) {
+        // 向前寻找最远10格的位置
+        for (int i = 10; i >= 1; i--) {
             Location checkLoc = eyeLoc.clone().add(direction.clone().multiply(i));
-            if (checkLoc.getBlock().getType().isAir()) {
-                targetLoc = checkLoc;
-                break;
-            }
+            // 可以直接放置，不需要检查是否为空气
+            targetLoc = checkLoc;
+            break;
         }
         
-        // 如果没找到合适位置，就在玩家面前3格处
+        // 如果没找到位置，就在玩家面前5格处
         if (targetLoc == null) {
-            targetLoc = player.getLocation().add(direction.clone().multiply(3));
-        }
-        
-        // 确保位置是地面
-        if (!targetLoc.getBlock().getType().isAir()) {
-            targetLoc = targetLoc.add(0, 1, 0);
+            targetLoc = player.getLocation().add(direction.clone().multiply(5));
         }
 
         final Location spawnerLoc = targetLoc.clone();
@@ -783,6 +790,8 @@ public class ItemEffectManager {
         
         // 获取刷怪笼状态并设置参数
         if (spawnerLoc.getBlock().getState() instanceof org.bukkit.block.CreatureSpawner spawner) {
+            // 设置生成僵尸
+            spawner.setSpawnedType(org.bukkit.entity.EntityType.ZOMBIE);
             // 设置生成延迟参数（与数据包一致）
             spawner.setMaxSpawnDelay(200); // MaxSpawnDelay: 200 ticks (10秒)
             spawner.setMinSpawnDelay(20);  // MinSpawnDelay: 20 ticks (1秒)
@@ -896,12 +905,18 @@ public class ItemEffectManager {
         Location playerLoc = player.getLocation();
         World world = player.getWorld();
         
+        // 锁定玩家移动和视角
+        lockPlayerMovement(player);
+        
         // 1. 召唤竖直向上的大光柱
         spawnVerticalLightColumn(world, playerLoc);
         
         // 2. 延迟后光柱倒向玩家方向
         Bukkit.getRegionScheduler().runDelayed(plugin, playerLoc, task -> {
-            if (!player.isOnline()) return;
+            if (!player.isOnline()) {
+                unlockPlayerMovement(player);
+                return;
+            }
             
             // 计算光柱倒下的方向（以玩家头部为轴心）
             Vector direction = playerLoc.getDirection().normalize();
@@ -912,12 +927,46 @@ public class ItemEffectManager {
             
             // 3. 延迟后造成伤害
             Bukkit.getRegionScheduler().runDelayed(plugin, playerLoc, task2 -> {
-                if (!player.isOnline()) return;
+                if (!player.isOnline()) {
+                    unlockPlayerMovement(player);
+                    return;
+                }
                 
                 // 造成伤害并击退
                 dealDamageAndKnockback(player, playerLoc);
+                
+                // 解锁玩家移动
+                unlockPlayerMovement(player);
             }, 20L); // 1秒延迟
         }, 10L); // 0.5秒延迟
+    }
+    
+    // 存储被锁定移动的玩家
+    private final Set<UUID> lockedPlayers = new HashSet<>();
+    
+    /**
+     * 锁定玩家移动和视角
+     */
+    private void lockPlayerMovement(Player player) {
+        lockedPlayers.add(player.getUniqueId());
+        // 给予缓慢效果使玩家无法移动
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, 255, false, false));
+        player.sendMessage(ChatColor.GOLD + "正在蓄力...");
+    }
+    
+    /**
+     * 解锁玩家移动和视角
+     */
+    private void unlockPlayerMovement(Player player) {
+        lockedPlayers.remove(player.getUniqueId());
+        player.removePotionEffect(PotionEffectType.SLOWNESS);
+    }
+    
+    /**
+     * 检查玩家是否被锁定移动
+     */
+    public boolean isPlayerLocked(UUID playerId) {
+        return lockedPlayers.contains(playerId);
     }
     
     /**
@@ -969,10 +1018,10 @@ public class ItemEffectManager {
                 // 对玩家造成伤害
                 target.damage(random.nextDouble() * 7 + 6, player); // 6-13伤害
                 
-                // 击退效果
+                // 击退效果（约2格）
                 Vector knockback = target.getLocation().toVector().subtract(loc.toVector()).normalize();
-                knockback.setY(Math.max(0.4, knockback.getY())); // 确保有向上的击退
-                target.setVelocity(knockback.multiply(1.5));
+                knockback.setY(Math.max(0.3, knockback.getY())); // 确保有向上的击退
+                target.setVelocity(knockback.multiply(0.6)); // 减小击退距离到约2格
                 
                 // 播放音效
                 target.playSound(target.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.0f);
@@ -980,10 +1029,10 @@ public class ItemEffectManager {
                 // 对其他生物造成伤害
                 livingEntity.damage(random.nextDouble() * 7 + 6, player);
                 
-                // 击退效果
+                // 击退效果（约2格）
                 Vector knockback = livingEntity.getLocation().toVector().subtract(loc.toVector()).normalize();
-                knockback.setY(Math.max(0.4, knockback.getY()));
-                livingEntity.setVelocity(knockback.multiply(1.5));
+                knockback.setY(Math.max(0.3, knockback.getY()));
+                livingEntity.setVelocity(knockback.multiply(0.6)); // 减小击退距离到约2格
             }
         }
     }

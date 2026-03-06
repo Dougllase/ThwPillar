@@ -459,6 +459,33 @@ public class PlayerListener implements Listener {
     */
    @EventHandler
    public void onProjectileHit(org.bukkit.event.entity.ProjectileHitEvent event) {
+      // 处理雪球和鸡蛋的击退效果
+      if (event.getEntity() instanceof org.bukkit.entity.Snowball snowball) {
+         if (event.getHitEntity() instanceof Player target) {
+            // 击退被命中的玩家
+            Vector knockback = target.getLocation().toVector()
+                  .subtract(snowball.getLocation().toVector())
+                  .normalize()
+                  .multiply(0.8)
+                  .setY(0.3);
+            target.setVelocity(knockback);
+         }
+         return;
+      }
+      
+      if (event.getEntity() instanceof org.bukkit.entity.Egg egg) {
+         if (event.getHitEntity() instanceof Player target) {
+            // 击退被命中的玩家
+            Vector knockback = target.getLocation().toVector()
+                  .subtract(egg.getLocation().toVector())
+                  .normalize()
+                  .multiply(0.8)
+                  .setY(0.3);
+            target.setVelocity(knockback);
+         }
+         return;
+      }
+      
       if (!(event.getEntity() instanceof Arrow arrow)) return;
 
       // 处理爆炸箭 - 神弓射出的箭

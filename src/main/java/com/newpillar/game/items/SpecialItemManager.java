@@ -100,16 +100,16 @@ public class SpecialItemManager {
                     meta.addEnchant(Enchantment.KNOCKBACK, 4, true);
                 }
                 case SPEAR -> {
-                    // 长♂矛 - 突进3附魔，主手+1实体交互距离
-                    lore.add(Component.text("突进 III").color(TextColor.color(0xFF5555)));
-                    lore.add(Component.empty());
-                    lore.add(Component.text("主手时实体交互距离 +1").color(TextColor.color(0x55FFFF)));
+                    // 长♂矛 - 锋利5，主手+3实体交互距离，显示附魔和属性
+                    // 添加锋利5附魔
+                    meta.addEnchant(Enchantment.SHARPNESS, 5, true);
                     // 添加原版突进附魔 (LUNGE)
                     meta.addEnchant(Enchantment.LUNGE, 3, true);
-                    // 主手+1实体交互距离
+                    // 主手+3实体交互距离
                     meta.addAttributeModifier(Attribute.ENTITY_INTERACTION_RANGE,
-                            new AttributeModifier(UUID.randomUUID(), "spear_range", 1.0,
+                            new AttributeModifier(UUID.randomUUID(), "spear_range", 3.0,
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+                    // 不添加HIDE_ENCHANTS和HIDE_ATTRIBUTES，让附魔和属性显示出来
                 }
                 case BONES_WITHOUT_CHICKEN_FEET -> {
                     // 有骨无鸡爪
@@ -133,7 +133,7 @@ public class SpecialItemManager {
                     // 牌 - "我要验牌"
                     lore.add(Component.text("我要验牌！").color(TextColor.color(0xFFD700)).decorate(TextDecoration.BOLD));
                     lore.add(Component.empty());
-                    lore.add(Component.text("右键使用，击退周围玩家1格").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("右键使用，击退周围玩家").color(TextColor.color(0xAAAAAA)));
                 }
                 case MEOW_AXE -> {
                     // 喵人斧 - 耐久只有2
@@ -190,7 +190,7 @@ public class SpecialItemManager {
                 }
                 case ROCKET_BOOTS -> {
                     // 火箭靴
-                    lore.add(Component.text("控制按shift能够触发").color(TextColor.color(0xAAAAAA))
+                    lore.add(Component.text("空中按shift能够触发").color(TextColor.color(0xAAAAAA))
                             .append(Component.text("立体弹射模块").color(TextColor.color(0xFFD700))));
                     // 安全掉落距离 +3
                     meta.addAttributeModifier(Attribute.SAFE_FALL_DISTANCE,
@@ -234,7 +234,7 @@ public class SpecialItemManager {
                     // 蓝屏 - 材质蓝色染料
                     lore.add(Component.text("蓝屏！").color(TextColor.color(0x5555FF)).decorate(TextDecoration.BOLD));
                     lore.add(Component.empty());
-                    lore.add(Component.text("右键使用，禁锢并冻结目标").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("右键能够让某个你身边的人的电脑蓝屏哦～（并非真的）").color(TextColor.color(0xAAAAAA)));
                 }
                 case HONGBAO -> {
                     // 红包 - 材质地狱砖
@@ -242,12 +242,9 @@ public class SpecialItemManager {
                 }
                 case HYPNOSIS_APP -> {
                     // 催眠app - 材质铁锭
-                    lore.add(Component.text("右键随机").color(TextColor.color(0xAAAAAA))
-                            .append(Component.text("").color(TextColor.color(0xFFD700)))
-                            .append(Component.text("一名玩家(不包括自己)").color(TextColor.color(0xAAAAAA))));
+                    lore.add(Component.text("右键催眠一个玩家，让ta获得：").color(TextColor.color(0xAAAAAA)));
                     lore.add(Component.empty());
-                    lore.add(Component.text("").color(TextColor.color(0xFF55FF))
-                            .append(Component.text("缓慢I 10s, 挖掘疲劳III 15s").color(TextColor.color(0x55FFFF))));
+                    lore.add(Component.text("缓慢I 10s, 挖掘疲劳III 15s").color(TextColor.color(0x55FFFF)));
                 }
                 case EX_CURRY_STICK -> {
                     // 『EX咖喱棒』 - 材质钻石剑
@@ -263,29 +260,33 @@ public class SpecialItemManager {
                     // 刷怪笼
                 }
                 case SPECIAL_BOW -> {
-                    // 神弓 - 发射爆炸箭
-                    lore.add(Component.text("发射爆炸箭").color(TextColor.color(0xFF5555)).decorate(TextDecoration.BOLD));
-                    lore.add(Component.empty());
-                    lore.add(Component.text("箭矢落地时产生爆炸").color(TextColor.color(0xAAAAAA)));
+                    // 神弓 - 发射爆炸箭，显示真实附魔
                     meta.addEnchant(Enchantment.POWER, 5, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    // 不隐藏附魔，让真实附魔显示
                 }
                 case SPECIAL_CROSSBOW -> {
-                    // 神弩 - 多重射击
-                    lore.add(Component.text("多重射击").color(TextColor.color(0xFF5555)).decorate(TextDecoration.BOLD));
-                    lore.add(Component.empty());
-                    lore.add(Component.text("同时发射5支箭矢").color(TextColor.color(0xAAAAAA)));
+                    // 神弩 - 多重射击，显示真实附魔
                     meta.addEnchant(Enchantment.MULTISHOT, 1, true);
                     meta.addEnchant(Enchantment.QUICK_CHARGE, 3, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    // 不隐藏附魔，让真实附魔显示
                 }
             }
 
             meta.lore(lore);
 
-            // 隐藏附魔显示，但显示属性（击退棒除外）
-            if (type != SpecialItemType.KNOCKBACK_STICK) {
+            // 隐藏附魔显示，但显示属性（击退棒、长矛、神弓、神弩除外）
+            if (type != SpecialItemType.KNOCKBACK_STICK && type != SpecialItemType.SPEAR 
+                && type != SpecialItemType.SPECIAL_BOW && type != SpecialItemType.SPECIAL_CROSSBOW) {
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+            
+            // 长矛显示属性
+            if (type == SpecialItemType.SPEAR) {
+                // 不隐藏属性，让属性显示出来
+            } else {
+                meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             }
 
             // 设置PersistentData
@@ -294,12 +295,12 @@ public class SpecialItemManager {
 
             item.setItemMeta(meta);
 
-            // 喵人斧特殊处理：设置耐久为2（剩余2点使用次数）
+            // 喵人斧特殊处理：设置耐久为1（剩余1点使用次数）
             if (type == SpecialItemType.MEOW_AXE) {
                 if (item.getItemMeta() instanceof Damageable damageable) {
                     int maxDurability = item.getType().getMaxDurability();
-                    // 设置损坏值为最大耐久 - 2，即剩余2点耐久
-                    damageable.setDamage(maxDurability - 2);
+                    // 设置损坏值为最大耐久 - 1，即剩余1点耐久
+                    damageable.setDamage(maxDurability - 1);
                     item.setItemMeta(damageable);
                 }
             }
