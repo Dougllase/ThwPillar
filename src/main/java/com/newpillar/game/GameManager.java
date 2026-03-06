@@ -1132,6 +1132,9 @@ public class GameManager {
          this.sidebarManager.playerJoin(player);
          this.sidebarManager.showLobbySidebar();
          
+         // 给予投票物品
+         giveVoteItem(player);
+         
          // 如果自动开始功能启用，自动将玩家标记为准备
          this.plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 加入，autoStartEnabled=" + this.autoStartEnabled + ", gameStatus=" + this.gameStatus);
          if (this.autoStartEnabled) {
@@ -2115,5 +2118,25 @@ public class GameManager {
    
    public com.newpillar.cache.PlayerCache getPlayerCache() {
       return this.playerCache;
+   }
+   
+   /**
+    * 给予玩家投票物品
+    */
+   private void giveVoteItem(Player player) {
+      // 创建投票物品（书本）
+      ItemStack voteItem = new ItemStack(Material.BOOK);
+      org.bukkit.inventory.meta.ItemMeta meta = voteItem.getItemMeta();
+      if (meta != null) {
+         meta.setDisplayName("§6§l投票");
+         java.util.List<String> lore = new java.util.ArrayList<>();
+         lore.add("§7右键打开投票界面");
+         lore.add("§7选择你想要的规则！");
+         meta.setLore(lore);
+         voteItem.setItemMeta(meta);
+      }
+      
+      // 将物品放入玩家背包的第一个空位
+      player.getInventory().setItem(0, voteItem);
    }
 }

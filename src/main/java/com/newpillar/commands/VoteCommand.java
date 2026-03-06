@@ -58,10 +58,9 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // 检查参数
+        // 无参数时打开投票GUI
         if (args.length < 1) {
-            player.sendMessage("§c使用方法: /vote <编号>");
-            player.sendMessage("§7请输入要投票的规则编号 (1-3)");
+            this.plugin.getVoteGUI().openVoteGUI(player);
             return true;
         }
 

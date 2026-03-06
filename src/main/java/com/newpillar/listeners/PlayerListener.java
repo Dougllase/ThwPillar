@@ -378,6 +378,19 @@ public class PlayerListener implements Listener {
             event.setCancelled(true);
             vanillaItemEffectManager.onPlayerInteract(player, item);
          }
+         return;
+      }
+      
+      // 检查是否是投票物品（书本）
+      if (material == Material.BOOK && item.hasItemMeta()) {
+         String displayName = item.getItemMeta().getDisplayName();
+         if ("§6§l投票".equals(displayName)) {
+            event.setCancelled(true);
+            // 打开投票GUI
+            if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+               plugin.getVoteGUI().openVoteGUI(player);
+            }
+         }
       }
    }
 

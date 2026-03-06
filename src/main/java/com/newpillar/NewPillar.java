@@ -49,6 +49,7 @@ public class NewPillar extends JavaPlugin {
    private DatabaseManager databaseManager;
    private AdvancementManager advancementManager;
    private AdvancementGenerator advancementGenerator;
+   private com.newpillar.game.gui.VoteGUI voteGUI;
    private Set<UUID> pendingFoxSpawns = new HashSet<>();
 
    public void onEnable() {
@@ -95,6 +96,9 @@ public class NewPillar extends JavaPlugin {
       com.newpillar.commands.VoteCommand voteCommand = new com.newpillar.commands.VoteCommand(this);
       this.getCommand("vote").setExecutor(voteCommand);
       this.getCommand("vote").setTabCompleter(voteCommand);
+      
+      // 初始化投票GUI
+      this.voteGUI = new com.newpillar.game.gui.VoteGUI(this, this.gameManager, this.gameManager.getVoteManager());
       this.getServer().getPluginManager().registerEvents(
          new PlayerListener(this, this.gameManager, this.specialItemManager, this.itemEffectManager, this.vanillaItemManager, this.vanillaItemEffectManager),
          this
@@ -181,6 +185,10 @@ public class NewPillar extends JavaPlugin {
 
    public DebugLogger getDebugLogger() {
       return this.debugLogger;
+   }
+   
+   public com.newpillar.game.gui.VoteGUI getVoteGUI() {
+      return this.voteGUI;
    }
 
    public DatabaseManager getDatabaseManager() {
