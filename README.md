@@ -4,6 +4,12 @@
 [![Server Software](https://img.shields.io/badge/Server-Folia-orange.svg)](https://papermc.io/software/folia)
 [![Java Version](https://img.shields.io/badge/Java-21+-green.svg)](https://adoptium.net/)
 
+> **🌿 当前分支**: `thwreward-standalone` - 包含 ThwReward 子插件集成
+> 
+> 此分支包含主插件与 ThwReward 奖励子插件的集成代码。ThwReward 是可选依赖，不影响主插件独立运行。
+> 
+> 查看 [THWREWARD_BRANCH.md](THWREWARD_BRANCH.md) 了解分支详情。
+
 一个基于Folia的高性能Minecraft小游戏插件，支持多人在线对战。
 
 ## 游戏简介
