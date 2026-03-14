@@ -129,7 +129,6 @@ public class AdvancementGenerator {
             Material.CHEST, "task", "root",
             createImpossibleTrigger(), null);
         
-        // 物品成就 - 分为多个子分支
         // 武器类
         addAdvancement("weapons_root", "神兵利器", "强大的武器",
             Material.DIAMOND_SWORD, "task", "items_root",
@@ -143,21 +142,30 @@ public class AdvancementGenerator {
         addAdvancement("knockback_stick", "击退棒", "bye~",
             Material.STICK, "task", "weapons_root",
             createImpossibleTrigger(), null);
-        addAdvancement("godly_pickaxe", "我滴神镐", "",
+        addAdvancement("godly_pickaxe", "我滴神镐", "人形挖土机",
             Material.NETHERITE_PICKAXE, "task", "weapons_root",
             createImpossibleTrigger(), null);
-        addAdvancement("bow_use", "神弓", "获得神弓",
+        addAdvancement("spear", "长♂矛", "这个世界太乱♂",
+            Material.GOLDEN_SPEAR, "task", "weapons_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("special_bow", "神弓", "这一箭，贯穿星辰",
             Material.BOW, "task", "weapons_root",
             createImpossibleTrigger(), null);
-        addAdvancement("crossbow_use", "神弩", "获得神弩",
+        addAdvancement("special_crossbow", "神弩", "弩，怒也，有执怒也。其柄曰臂，似人臂也。钩弦者曰牙，似齿牙也。牙外曰郭，为牙之规郭也...",
             Material.CROSSBOW, "task", "weapons_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("life_steal_sword", "生命偷取剑", "获得生命偷取剑",
+            Material.GOLDEN_SWORD, "task", "weapons_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("poison_dagger", "剧毒匕首", "为什么不是绿的？",
+            Material.STONE_SWORD, "task", "weapons_root",
             createImpossibleTrigger(), null);
         
         // 装备类
         addAdvancement("armor_root", "神奇装备", "特殊装备",
             Material.DIAMOND_CHESTPLATE, "task", "items_root",
             createImpossibleTrigger(), null);
-        addAdvancement("invisible_scarf", "隐身沙粒", "你看不见我",
+        addAdvancement("invisible_sand", "隐身沙粒", "你看不见我",
             Material.PRISMARINE_CRYSTALS, "task", "armor_root",
             createImpossibleTrigger(), null);
         addAdvancement("rocket_boots", "火箭靴", "是二段跳！",
@@ -165,6 +173,12 @@ public class AdvancementGenerator {
             createImpossibleTrigger(), null);
         addAdvancement("running_shoes", "跑鞋", "飞一般的感觉",
             Material.IRON_BOOTS, "task", "armor_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("gravity_boots", "重力靴", "获得重力靴",
+            Material.NETHERITE_BOOTS, "task", "armor_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("shield_generator", "护盾发生器", "获得护盾发生器",
+            Material.SHIELD, "task", "armor_root",
             createImpossibleTrigger(), null);
         
         // 道具类
@@ -206,48 +220,37 @@ public class AdvancementGenerator {
         addAdvancement("yanpai", "牌", "我要验牌",
             Material.PAPER, "task", "consumables_root",
             createImpossibleTrigger(), null);
-        addAdvancement("nether_star_use", "下界之星", "使用下界之星", 
-            Material.NETHER_STAR, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("dragon_breath_use", "龙息", "使用龙息", 
-            Material.DRAGON_BREATH, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("echo_shard_use", "回响碎片", "使用回响碎片", 
-            Material.ECHO_SHARD, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("fire_charge_use", "火焰弹", "使用火焰弹", 
-            Material.FIRE_CHARGE, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("tnt_use", "TNT", "使用TNT", 
-            Material.TNT, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("end_crystal_use", "末地水晶", "使用末地水晶", 
-            Material.END_CRYSTAL, "goal", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("feather_use", "羽毛", "使用羽毛", 
-            Material.FEATHER, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("enchanted_book_use", "附魔书", "使用附魔书", 
-            Material.BOOK, "task", "consumables_root",
-            createImpossibleTrigger(), null);
-        addAdvancement("spawner", "刷怪笼", "获得刷怪笼",
+        addAdvancement("spawner", "刷怪笼", "召唤(怪物)师",
             Material.SPAWNER, "goal", "consumables_root",
+            createImpossibleTrigger(), null);
+        
+        // 特殊武器
+        addAdvancement("excalibur", "EX咖喱棒", "常胜之王高声的念出手上奇迹的真名，那正是——誓约胜利之剑",
+            Material.DIAMOND_SWORD, "challenge", "weapons_root",
             createImpossibleTrigger(), null);
 
         // 死亡成就分支
         addAdvancement("deaths_root", "死亡之路", "在失败中成长",
             Material.BONE, "task", "root",
             createImpossibleTrigger(), null);
-        addAdvancement("death_1", "初次阵亡", "死亡 1 次",
+        addAdvancement("death_1", "初次阵亡", "出师未捷身先死",
             Material.BONE, "task", "deaths_root",
             createImpossibleTrigger(), null);
-        addAdvancement("death_fall", "摔落", "摔死",
+        addAdvancement("death_fall", "摔落", "这地怎么这么滑",
             Material.LEATHER_BOOTS, "task", "deaths_root",
             createImpossibleTrigger(), null);
 
         // 肘击王成就
         addAdvancement("elbow_king", "肘击王", "以man!之力肘击50次孩子们",
             Material.ORANGE_WOOL, "challenge", "kills_root",
+            createImpossibleTrigger(), null);
+        
+        // 俄罗斯轮盘枪成就
+        addAdvancement("russian_roulette", "俄罗斯轮盘", "亡命之人",
+            Material.IRON_HORSE_ARMOR, "task", "events_root",
+            createImpossibleTrigger(), null);
+        addAdvancement("russian_roulette_6", "左轮不会卡壳", "在俄罗斯轮盘游戏中选择6颗子弹并不出意外的被一枪崩死",
+            Material.NETHERITE_INGOT, "challenge", "russian_roulette",
             createImpossibleTrigger(), null);
     }
     
@@ -273,6 +276,14 @@ public class AdvancementGenerator {
         // 创建数据包文件夹
         File packFolder = new File(datapacksFolder, "newpillar_advancements");
         File advancementsFolder = new File(packFolder, "data/newpillar/advancement");
+        
+        // 如果数据包已存在，先删除旧的文件
+        if (packFolder.exists()) {
+            plugin.getLogger().info("发现旧的数据包，正在清理...");
+            deleteDirectory(packFolder);
+        }
+        
+        // 重新创建文件夹
         advancementsFolder.mkdirs();
         
         // 创建 pack.mcmeta
@@ -284,6 +295,21 @@ public class AdvancementGenerator {
         }
         
         plugin.getLogger().info("数据包位置: " + packFolder.getAbsolutePath());
+    }
+    
+    /**
+     * 递归删除目录及其内容
+     */
+    private void deleteDirectory(File directory) {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteDirectory(file);
+                }
+            }
+        }
+        directory.delete();
     }
     
     private void createPackMeta(File packFolder) throws IOException {
@@ -397,24 +423,47 @@ public class AdvancementGenerator {
             case KING_GAME -> "king_game";
             case NUCLEAR -> "nuclear";
             case KINGSLAYER -> "kingslayer";
-            case BRUCE -> "bruce";
-            case BLUE_SCREEN -> "blue_screen";
-            case FLY_MACE -> "fly_mace";
-            case INVISIBLE_SCARF -> "invisible_scarf";
-            case BIG_FLAME_ROD -> "big_flame_rod";
+            // 武器类
             case MEOW_AXE -> "meow_axe";
-            case PIXIE -> "pixie";
+            case FLY_MACE -> "fly_mace";
+            case KNOCKBACK_STICK -> "knockback_stick";
+            case GODLY_PICKAXE -> "godly_pickaxe";
+            case SPEAR -> "spear";
+            case SPECIAL_BOW -> "special_bow";
+            case SPECIAL_CROSSBOW -> "special_crossbow";
+            case LIFE_STEAL_SWORD -> "life_steal_sword";
+            case POISON_DAGGER -> "poison_dagger";
+            // 装备类
+            case INVISIBLE_SAND -> "invisible_sand";
             case ROCKET_BOOTS -> "rocket_boots";
             case RUNNING_SHOES -> "running_shoes";
-            case WITCH_APPLE -> "witch_apple";
-            case YANPAI -> "yanpai";
+            case GRAVITY_BOOTS -> "gravity_boots";
+            case SHIELD_GENERATOR -> "shield_generator";
+            // 道具类
+            case BRUCE -> "bruce";
+            case BLUE_SCREEN -> "blue_screen";
+            case BIG_FLAME_ROD -> "big_flame_rod";
+            case PIXIE -> "pixie";
             case CLOCK -> "clock";
             case HONGBAO -> "hongbao";
             case HYPNOSIS_APP -> "hypnosis_app";
             case BONES_WITHOUT_CHICKEN_FEET -> "bones_without_chicken_feet";
-            case KNOCKBACK_STICK -> "knockback_stick";
-            case GODLY_PICKAXE -> "godly_pickaxe";
-            case SPANWER -> "spawner";
+            // 消耗品类
+            case WITCH_APPLE -> "witch_apple";
+            case YANPAI -> "yanpai";
+            case SPAWNER -> "spawner";
+            // 特殊武器
+            case EXCALIBUR -> "excalibur";
+            // 死亡成就
+            case DEATH_1 -> "death_1";
+            case DEATH_FALL -> "death_fall";
+            // 肘击王
+            case ELBOW_KING -> "elbow_king";
+            // 俄罗斯轮盘
+            case RUSSIAN_ROULETTE -> "russian_roulette";
+            case RUSSIAN_ROULETTE_6 -> "russian_roulette_6";
+            // 缺失的成就类型
+            case INVISIBLE_SCARF -> "invisible_scarf";
             case NETHER_STAR_USE -> "nether_star_use";
             case DRAGON_BREATH_USE -> "dragon_breath_use";
             case ECHO_SHARD_USE -> "echo_shard_use";
@@ -425,9 +474,6 @@ public class AdvancementGenerator {
             case END_CRYSTAL_USE -> "end_crystal_use";
             case FEATHER_USE -> "feather_use";
             case ENCHANTED_BOOK_USE -> "enchanted_book_use";
-            case DEATH_1 -> "death_1";
-            case DEATH_FALL -> "death_fall";
-            case ELBOW_KING -> "elbow_king";
         };
     }
     

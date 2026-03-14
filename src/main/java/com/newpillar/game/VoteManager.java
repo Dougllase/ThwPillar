@@ -86,7 +86,7 @@ public class VoteManager {
             gameManager.broadcastMessage("§7" + rule.getDescription());
             gameManager.broadcastMessage("");
         }
-        gameManager.broadcastMessage("§e使用 §f/vote <编号> §e进行规则投票");
+        gameManager.broadcastMessage("§e点击投票书或使用 §f/vote §e打开投票界面");
         gameManager.broadcastMessage("§6§l═══════════════════════════");
     }
     

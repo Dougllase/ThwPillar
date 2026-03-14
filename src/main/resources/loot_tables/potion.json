@@ -9,7 +9,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "night_vision"
+              "id": "night_vision",
+              "duration": 1200,
+              "amplifier": 0
             }
           ]
         },
@@ -19,7 +21,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "invisibility"
+              "id": "invisibility",
+              "duration": 600,
+              "amplifier": 0
             }
           ]
         },
@@ -29,7 +33,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "leaping"
+              "id": "leaping",
+              "duration": 600,
+              "amplifier": 0
             }
           ]
         },
@@ -39,7 +45,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "fire_resistance"
+              "id": "fire_resistance",
+              "duration": 1200,
+              "amplifier": 0
             }
           ]
         },
@@ -49,7 +57,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "swiftness"
+              "id": "swiftness",
+              "duration": 600,
+              "amplifier": 0
             }
           ]
         },
@@ -99,7 +109,9 @@
               "functions": [
                 {
                   "function": "set_potion",
-                  "id": "regeneration"
+                  "id": "regeneration",
+                  "duration": 200,
+                  "amplifier": 0
                 }
               ],
               "weight": 6
@@ -110,7 +122,9 @@
               "functions": [
                 {
                   "function": "set_potion",
-                  "id": "long_regeneration"
+                  "id": "long_regeneration",
+                  "duration": 400,
+                  "amplifier": 0
                 }
               ],
               "weight": 4
@@ -123,7 +137,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "slowness"
+              "id": "slowness",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -163,7 +179,9 @@
               "functions": [
                 {
                   "function": "set_potion",
-                  "id": "strength"
+                  "id": "strength",
+                  "duration": 600,
+                  "amplifier": 0
                 }
               ],
               "weight": 8
@@ -174,7 +192,9 @@
               "functions": [
                 {
                   "function": "set_potion",
-                  "id": "long_strength"
+                  "id": "long_strength",
+                  "duration": 1200,
+                  "amplifier": 0
                 }
               ],
               "weight": 2
@@ -187,7 +207,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "turtle_master"
+              "id": "turtle_master",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -197,7 +219,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "slow_falling"
+              "id": "slow_falling",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -207,7 +231,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "poison"
+              "id": "poison",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -217,7 +243,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "weakness"
+              "id": "weakness",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -227,7 +255,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "wind_charged"
+              "id": "wind_charged",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -237,7 +267,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "weaving"
+              "id": "weaving",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -247,7 +279,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "oozing"
+              "id": "oozing",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         },
@@ -257,7 +291,9 @@
           "functions": [
             {
               "function": "set_potion",
-              "id": "infested"
+              "id": "infested",
+              "duration": 300,
+              "amplifier": 0
             }
           ]
         }

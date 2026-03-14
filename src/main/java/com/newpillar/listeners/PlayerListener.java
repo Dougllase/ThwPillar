@@ -49,6 +49,10 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
@@ -86,6 +90,16 @@ public class PlayerListener implements Listener {
    public void onPlayerDeath(PlayerDeathEvent event) {
       Player player = event.getEntity();
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
+      
+      // 大厅中玩家死亡不掉落物品
+      if (data != null && data.getState() == PlayerState.LOBBY) {
+         event.setKeepInventory(true);
+         event.getDrops().clear();
+         event.setKeepLevel(true);
+         event.setDroppedExp(0);
+         return;
+      }
+      
       if (data != null) {
          if (data.getState() == PlayerState.INGAME) {
             // 检查是否是国王游戏中国王被杀
@@ -93,13 +107,16 @@ public class PlayerListener implements Listener {
             if (killer != null && this.gameManager.isKingGameActive() && this.gameManager.isCurrentKing(player)) {
                // 授予弑君者成就
                plugin.getAchievementSystem().grantEventAchievement(killer, "kingslayer");
-               Bukkit.broadcastMessage("§6§l[国王游戏] " + killer.getName() + " 杀死了国王 " + player.getName() + "！");
+               final String kingMessage = "§6§l[国王游戏] " + killer.getName() + " 杀死了国王 " + player.getName() + "！";
+               Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> Bukkit.broadcastMessage(kingMessage));
             }
 
             // 记录击杀和死亡统计（只在局内记录）
             if (killer != null) {
                // 记录击杀者
                plugin.getStatisticsSystem().recordKill(killer, player);
+               // 通知ThwReward子插件玩家击杀
+               plugin.getThwRewardIntegration().onPlayerKill(killer, player);
             }
             // 记录死亡
             plugin.getStatisticsSystem().recordDeath(player);
@@ -115,17 +132,28 @@ public class PlayerListener implements Listener {
             plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 死亡位置已保存: " + deathLocation);
 
             this.gameManager.playerOut(player);
-            this.gameManager.broadcastMessage("§c" + player.getName() + " §7被淘汰了！剩余玩家: §a" + this.gameManager.getAlivePlayers().size());
+            final String eliminationMessage = "§c" + player.getName() + " §7被淘汰了！剩余玩家: §a" + this.gameManager.getAlivePlayers().size();
+            Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> this.gameManager.broadcastMessage(eliminationMessage));
 
             // 触发死亡成就
             plugin.getAchievementSystem().onPlayerDeath(player);
+
+            // 通知ThwReward子插件玩家出局
+            plugin.getThwRewardIntegration().onPlayerEliminated(player);
+
+            // 清理玩家所有属性修改（包括实体交互范围等）
+            this.cleanupPlayerAttributes(player);
 
             // 立即设置玩家为旁观模式，防止玩家继续掉落
             player.setGameMode(GameMode.SPECTATOR);
             plugin.getLogger().info("[调试] 玩家 " + player.getName() + " 死亡后立即设置为旁观模式");
 
-            // 发送出局Title提示
-            player.sendTitle("§c§l您已出局", "§7已进入观察者模式", 10, 70, 20);
+            // 发送出局Title提示 - 使用EntityScheduler在玩家线程执行
+            player.getScheduler().execute(this.plugin, () -> {
+               if (player.isOnline()) {
+                  player.sendTitle("§c§l您已出局", "§7已进入观察者模式", 10, 70, 20);
+               }
+            }, () -> {}, 1L);
 
             // 立即传送到死亡位置（或最近的存活玩家）
             Location teleportLocation = deathLocation;
@@ -217,7 +245,8 @@ public class PlayerListener implements Listener {
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
       if (data != null && data.getState() == PlayerState.INGAME) {
          this.gameManager.playerOut(player);
-         this.gameManager.broadcastMessage("§c" + player.getName() + " §7离开了游戏！剩余玩家: §a" + this.gameManager.getAlivePlayers().size());
+         final String quitMessage = "§c" + player.getName() + " §7离开了游戏！剩余玩家: §a" + this.gameManager.getAlivePlayers().size();
+         Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> this.gameManager.broadcastMessage(quitMessage));
       }
 
       this.gameManager.playerLeave(player);
@@ -228,6 +257,40 @@ public class PlayerListener implements Listener {
       Player player = event.getPlayer();
       // 玩家登录时自动加入游戏
       this.gameManager.playerJoin(player);
+      
+      // 通知ThwReward玩家加入（用于招人系统广播）
+      notifyThwRewardPlayerJoin(player);
+   }
+   
+   /**
+    * 通知ThwReward插件玩家加入
+    */
+   private void notifyThwRewardPlayerJoin(Player player) {
+      try {
+         org.bukkit.plugin.Plugin thwRewardPlugin = Bukkit.getPluginManager().getPlugin("ThwNewPillarRewards");
+         if (thwRewardPlugin == null || !thwRewardPlugin.isEnabled()) {
+            return;
+         }
+
+         // 获取RecruitmentSystem
+         java.lang.reflect.Method getRecruitmentSystem = thwRewardPlugin.getClass().getMethod("getRecruitmentSystem");
+         Object recruitmentSystem = getRecruitmentSystem.invoke(thwRewardPlugin);
+
+         if (recruitmentSystem == null) {
+            return;
+         }
+
+         // 获取当前玩家数量（使用准备玩家数量）
+         int currentPlayers = this.gameManager.getReadyPlayers().size();
+
+         // 调用onPlayerJoin方法
+         java.lang.reflect.Method onPlayerJoin = recruitmentSystem.getClass().getMethod("onPlayerJoin", String.class, int.class);
+         onPlayerJoin.invoke(recruitmentSystem, player.getName(), currentPlayers);
+
+      } catch (Exception e) {
+         // 静默处理，不影响主插件功能
+         this.plugin.getDebugLogger().debug("通知ThwReward玩家加入失败: " + e.getMessage());
+      }
    }
 
    @EventHandler
@@ -238,6 +301,17 @@ public class PlayerListener implements Listener {
       handleRocketBootsDoubleJump(player);
       
       PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
+      
+      // 大厅状态掉出世界检测
+      if (data != null && data.getState() == PlayerState.LOBBY) {
+         if (player.getLocation().getY() < -64) {
+            // 传送到大厅
+            Location lobby = this.gameManager.getLobbyLocation();
+            player.teleportAsync(lobby);
+            player.sendMessage("§c你掉出了世界，已传送回大厅！");
+         }
+      }
+      
       if (data != null && data.getState() == PlayerState.INGAME) {
          Player lookAtMeTarget = this.gameManager.getLookAtMeTarget();
          if (lookAtMeTarget != null && !lookAtMeTarget.equals(player)) {
@@ -256,34 +330,6 @@ public class PlayerListener implements Listener {
                Method setRotationMethod = player.getClass().getMethod("setRotation", float.class, float.class);
                setRotationMethod.invoke(player, yaw, pitch);
             } catch (Exception var20) {
-               event.setTo(newLoc);
-            }
-         }
-
-         if (this.gameManager.isKeyInversionActive()) {
-            // 键位反转效果：反转玩家的移动输入
-            Location from = event.getFrom();
-            Location to = event.getTo();
-            if (to == null) {
-               return;
-            }
-
-            // 计算玩家移动的位移
-            double deltaX = to.getX() - from.getX();
-            double deltaZ = to.getZ() - from.getZ();
-            
-            // 检测是否有水平移动（使用更小的阈值）
-            if (Math.abs(deltaX) > 0.0001 || Math.abs(deltaZ) > 0.0001) {
-               // 计算反方向的位置（反转水平移动）
-               // 乘以1.2让玩家感觉移动被"放大"了反向效果
-               double newX = from.getX() - deltaX * 1.2;
-               double newZ = from.getZ() - deltaZ * 1.2;
-               // Y轴保持原样，让重力正常工作
-               double newY = to.getY();
-               
-               Location newLoc = new Location(from.getWorld(), newX, newY, newZ);
-               newLoc.setYaw(to.getYaw());
-               newLoc.setPitch(to.getPitch());
                event.setTo(newLoc);
             }
          }
@@ -310,7 +356,43 @@ public class PlayerListener implements Listener {
    @EventHandler
    public void onPlayerInteract(PlayerInteractEvent event) {
       Player player = event.getPlayer();
-      ItemStack item = event.getItem();
+
+      // 优先检查主手物品，如果主手有特殊物品则使用主手，否则检查副手
+      ItemStack mainHand = player.getInventory().getItemInMainHand();
+      ItemStack offHand = player.getInventory().getItemInOffHand();
+
+      ItemStack item = null;
+      boolean isMainHand = false;
+
+      // 优先主手：如果主手有特殊物品或原版特殊物品，使用主手
+      if (mainHand != null && !mainHand.getType().isAir()) {
+         if (specialItemManager.isSpecialItem(mainHand) || vanillaItemManager.isVanillaItem(mainHand) ||
+             mainHand.getType() == Material.TNT || mainHand.getType() == Material.DRAGON_BREATH ||
+             mainHand.getType() == Material.FIRE_CHARGE ||
+             (mainHand.getType() == Material.BOOK && mainHand.hasItemMeta() &&
+              "§6§l投票".equals(mainHand.getItemMeta().getDisplayName()))) {
+            item = mainHand;
+            isMainHand = true;
+         }
+      }
+
+      // 如果主手没有特殊物品，检查副手
+      if (item == null && offHand != null && !offHand.getType().isAir()) {
+         if (specialItemManager.isSpecialItem(offHand) || vanillaItemManager.isVanillaItem(offHand) ||
+             offHand.getType() == Material.TNT || offHand.getType() == Material.DRAGON_BREATH ||
+             offHand.getType() == Material.FIRE_CHARGE ||
+             (offHand.getType() == Material.BOOK && offHand.hasItemMeta() &&
+              "§6§l投票".equals(offHand.getItemMeta().getDisplayName()))) {
+            item = offHand;
+            isMainHand = false;
+         }
+      }
+
+      // 如果都没有特殊物品，使用event.getItem()（通常是主手）
+      if (item == null) {
+         item = event.getItem();
+         isMainHand = true;
+      }
 
       if (item == null) return;
 
@@ -330,6 +412,18 @@ public class PlayerListener implements Listener {
       if (specialItemManager.isSpecialItem(item)) {
          SpecialItemManager.SpecialItemType type = specialItemManager.getSpecialItemType(item);
 
+         // 俄罗斯轮盘枪 - 右键打开选择界面
+         if (type == SpecialItemManager.SpecialItemType.RUSSIAN_ROULETTE) {
+            if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+               event.setCancelled(true);
+               // 消耗一个物品
+               item.setAmount(item.getAmount() - 1);
+               // 打开俄罗斯轮盘GUI
+               plugin.getRussianRouletteGUI().openRouletteGUI(player);
+            }
+            return;
+         }
+
          // 以下物品不取消事件，让它们正常工作：
          // - 弓弩类：正常拉弓/装填，特殊效果在 EntityShootBowEvent 中处理
          // - 工具类（神镐）：正常挖掘方块
@@ -341,17 +435,17 @@ public class PlayerListener implements Listener {
             return;
          }
 
-         // "让你飞起来"（重锤）只在右键且在地面上时触发技能
+         // "让你飞起来"（重锤）任意右键触发技能
          // 允许正常的左键攻击（空中和地面）
          if (type == SpecialItemManager.SpecialItemType.FLY_MACE) {
-            // 只有右键才触发技能
-            if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
-               return; // 左键不处理，让重锤正常攻击
+            // 只有右键才触发技能，任意位置（空中或地面）都可以
+            if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+               // 右键触发技能
+               event.setCancelled(true);
+               itemEffectManager.onPlayerInteract(player, item, event.getClickedBlock());
             }
-            // 右键时检查是否在地面上
-            if (!player.isOnGround()) {
-               return; // 空中右键不触发技能
-            }
+            // 左键不处理，让重锤正常攻击
+            return;
          }
 
          // 鞋类物品（火箭靴、跑鞋）没有右键技能，不取消事件让它们正常装备
@@ -361,7 +455,7 @@ public class PlayerListener implements Listener {
          }
 
          event.setCancelled(true);
-         itemEffectManager.onPlayerInteract(player, item);
+         itemEffectManager.onPlayerInteract(player, item, event.getClickedBlock());
          return;
       }
 
@@ -393,6 +487,68 @@ public class PlayerListener implements Listener {
                plugin.getVoteGUI().openVoteGUI(player);
             }
          }
+      }
+
+      // 检查是否是附魔书（主手持有，给副手武器附魔）
+      if (material == Material.ENCHANTED_BOOK && (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK)) {
+         handleEnchantedBook(player, item, event);
+      }
+   }
+
+   /**
+    * 处理附魔书右键给副手物品附魔
+    * 不限制副手物品类型，只要存在物品即可附魔
+    */
+   private void handleEnchantedBook(Player player, ItemStack book, PlayerInteractEvent event) {
+      // 获取副手物品
+      ItemStack offHandItem = player.getInventory().getItemInOffHand();
+      
+      // 检查副手是否有物品
+      if (offHandItem == null || offHandItem.getType() == Material.AIR) {
+         player.sendMessage("§c副手必须持有物品才能附魔！");
+         return;
+      }
+      
+      // 获取附魔书的附魔
+      org.bukkit.inventory.meta.EnchantmentStorageMeta bookMeta = (org.bukkit.inventory.meta.EnchantmentStorageMeta) book.getItemMeta();
+      if (bookMeta == null || !bookMeta.hasStoredEnchants()) {
+         player.sendMessage("§c这本附魔书没有附魔！");
+         return;
+      }
+      
+      // 给副手物品添加附魔
+      Material offHandType = offHandItem.getType();
+      org.bukkit.inventory.meta.ItemMeta itemMeta = offHandItem.getItemMeta();
+      if (itemMeta == null) {
+         itemMeta = org.bukkit.Bukkit.getItemFactory().getItemMeta(offHandType);
+      }
+      
+      int enchantCount = 0;
+      for (java.util.Map.Entry<org.bukkit.enchantments.Enchantment, Integer> entry : bookMeta.getStoredEnchants().entrySet()) {
+         org.bukkit.enchantments.Enchantment enchant = entry.getKey();
+         int level = entry.getValue();
+         
+         // 无视限制直接添加附魔
+         itemMeta.addEnchant(enchant, level, true);
+         enchantCount++;
+      }
+      
+      if (enchantCount > 0) {
+         offHandItem.setItemMeta(itemMeta);
+         
+         // 消耗附魔书
+         book.setAmount(book.getAmount() - 1);
+         
+         // 播放音效
+         player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.0f);
+         
+         // 显示粒子效果
+         player.getWorld().spawnParticle(org.bukkit.Particle.ENCHANT, player.getLocation().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.5);
+         
+         player.sendMessage("§a成功给副手" + offHandType.name().toLowerCase().replace("_", " ") + "附魔！");
+         event.setCancelled(true);
+      } else {
+         player.sendMessage("§c这本附魔书没有附魔！");
       }
    }
 
@@ -426,8 +582,19 @@ public class PlayerListener implements Listener {
 
    @EventHandler
    public void onEntityDamage(EntityDamageEvent event) {
-      if (event.getEntity() instanceof Player) {
-         Player player = (Player) event.getEntity();
+      if (event.getEntity() instanceof Player player) {
+         // 检查玩家是否在大厅
+         PlayerData data = this.gameManager.getPlayerData(player.getUniqueId());
+         if (data != null && data.getState() == PlayerState.LOBBY) {
+            event.setCancelled(true);
+            return;
+         }
+         
+         // 检查游戏状态是否为LOBBY
+         if (this.gameManager.getGameStatus() == com.newpillar.game.enums.GameStatus.LOBBY) {
+            event.setCancelled(true);
+            return;
+         }
 
          // 检查是否在使用铁剑格挡
          ItemStack mainHand = player.getInventory().getItemInMainHand();
@@ -436,6 +603,56 @@ public class PlayerListener implements Listener {
             if (type == SpecialItemManager.SpecialItemType.IRON_SWORD) {
                // 这里可以添加格挡逻辑
                // 注意：实际格挡效果需要在ItemEffectManager中实现
+            }
+         }
+      }
+   }
+
+   // ==================== 大厅PVP保护 ====================
+
+   @EventHandler
+   public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+      // 阻止对玩家的伤害（大厅保护）
+      if (event.getEntity() instanceof Player target) {
+         PlayerData targetData = this.gameManager.getPlayerData(target.getUniqueId());
+         if (targetData != null && targetData.getState() == PlayerState.LOBBY) {
+            event.setCancelled(true);
+            return;
+         }
+
+         if (this.gameManager.getGameStatus() == com.newpillar.game.enums.GameStatus.LOBBY) {
+            event.setCancelled(true);
+            return;
+         }
+      }
+
+      // 生命偷取剑 - 造成伤害的50%转化为生命值
+      if (event.getDamager() instanceof Player attacker) {
+         ItemStack weapon = attacker.getInventory().getItemInMainHand();
+         if (weapon != null && weapon.hasItemMeta()) {
+            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
+            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
+
+            if ("life_steal_sword".equals(itemId)) {
+               double damage = event.getDamage();
+               double healAmount = damage * 0.5;
+               double newHealth = Math.min(attacker.getHealth() + healAmount, attacker.getMaxHealth());
+               attacker.setHealth(newHealth);
+               // 播放生命恢复音效
+               attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
+            }
+         }
+      }
+
+      // 剧毒匕首 - 攻击附加3秒中毒效果
+      if (event.getDamager() instanceof Player attacker) {
+         ItemStack weapon = attacker.getInventory().getItemInMainHand();
+         if (weapon != null && weapon.hasItemMeta()) {
+            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
+            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
+
+            if ("poison_dagger".equals(itemId) && event.getEntity() instanceof org.bukkit.entity.LivingEntity target) {
+               target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 60, 0, false, false));
             }
          }
       }
@@ -480,6 +697,8 @@ public class PlayerListener implements Listener {
       // 处理雪球和鸡蛋的击退效果
       if (event.getEntity() instanceof org.bukkit.entity.Snowball snowball) {
          if (event.getHitEntity() instanceof Player target) {
+            // 造成1点伤害（半颗心）
+            target.damage(1.0);
             // 击退被命中的玩家
             Vector knockback = target.getLocation().toVector()
                   .subtract(snowball.getLocation().toVector())
@@ -493,6 +712,8 @@ public class PlayerListener implements Listener {
       
       if (event.getEntity() instanceof org.bukkit.entity.Egg egg) {
          if (event.getHitEntity() instanceof Player target) {
+            // 造成1点伤害（半颗心）
+            target.damage(1.0);
             // 击退被命中的玩家
             Vector knockback = target.getLocation().toVector()
                   .subtract(egg.getLocation().toVector())
@@ -663,10 +884,12 @@ public class PlayerListener implements Listener {
     * 执行二段跳
     */
    private void performDoubleJump(Player player) {
-      // 给予向上的冲量 (Y轴速度 0.8，减小数值)
+      // 给予向上的冲量 (Y轴速度 0.8，减小数值) - 使用 RegionScheduler 确保线程安全
       Vector velocity = player.getVelocity();
       velocity.setY(0.8);
-      player.setVelocity(velocity);
+      Bukkit.getRegionScheduler().execute(plugin, player.getLocation(), () -> {
+         player.setVelocity(velocity);
+      });
 
       // 播放音效 (与数据包一致: wind_burst)
       player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.0f, 1.0f);
@@ -675,6 +898,71 @@ public class PlayerListener implements Listener {
       player.getWorld().spawnParticle(Particle.GUST, player.getLocation(), 10, 0.5, 0.5, 0.5, 0.1);
    }
 
+   // ==================== 投票书保护逻辑 ====================
+   
+   /**
+    * 检查物品是否是投票书
+    */
+   private boolean isVoteBook(ItemStack item) {
+      if (item == null || item.getType() != Material.BOOK) return false;
+      if (!item.hasItemMeta()) return false;
+      String displayName = item.getItemMeta().getDisplayName();
+      return "§6§l投票".equals(displayName);
+   }
+   
+   /**
+    * 阻止投票书被丢弃，丢弃时打开GUI
+    */
+   @EventHandler
+   public void onPlayerDropItem(PlayerDropItemEvent event) {
+      Player player = event.getPlayer();
+      ItemStack item = event.getItemDrop().getItemStack();
+      
+      if (isVoteBook(item)) {
+         event.setCancelled(true);
+         // 打开投票GUI
+         plugin.getVoteGUI().openVoteGUI(player);
+         player.sendMessage("§e点击投票书即可打开投票界面！");
+      }
+   }
+   
+   /**
+    * 阻止投票书在背包中被移动，尝试移动时打开GUI
+    */
+   @EventHandler
+   public void onInventoryClick(InventoryClickEvent event) {
+      if (!(event.getWhoClicked() instanceof Player player)) return;
+      
+      ItemStack clickedItem = event.getCurrentItem();
+      ItemStack cursorItem = event.getCursor();
+      
+      // 检查是否涉及投票书
+      if (isVoteBook(clickedItem) || isVoteBook(cursorItem)) {
+         event.setCancelled(true);
+         // 打开投票GUI
+         plugin.getVoteGUI().openVoteGUI(player);
+         player.sendMessage("§e投票书不能被移动，点击即可投票！");
+      }
+   }
+   
+   /**
+    * 阻止投票书被拖拽
+    */
+   @EventHandler
+   public void onInventoryDrag(InventoryDragEvent event) {
+      if (!(event.getWhoClicked() instanceof Player player)) return;
+      
+      ItemStack item = event.getOldCursor();
+      if (isVoteBook(item)) {
+         event.setCancelled(true);
+         // 打开投票GUI
+         plugin.getVoteGUI().openVoteGUI(player);
+         player.sendMessage("§e投票书不能被移动，点击即可投票！");
+      }
+   }
+   
+   // ==================== 大厅保护逻辑 ====================
+   
    // ==================== 海洋地图钓鱼系统 ====================
 
    private final Random fishingRandom = new Random();
@@ -712,8 +1000,8 @@ public class PlayerListener implements Listener {
       // 清除鱼钩
       hook.remove();
 
-      // 使用海洋地图专用的 sea 战利品表
-      ItemStack reward = this.plugin.getLootTableSystem().getRandomLoot("sea");
+      // 使用 ItemSystem 的战利品表（与其他地图定时获取的物品池一致）
+      ItemStack reward = this.plugin.getGameManager().getItemSystem().getRandomLoot();
 
       if (reward != null) {
          // 严格设置数量为1（钓鱼只给1个）
@@ -729,39 +1017,65 @@ public class PlayerListener implements Listener {
          }
       }
    }
-
-   @EventHandler
-   public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-      // 生命偷取剑 - 造成伤害的50%转化为生命值
-      if (event.getDamager() instanceof Player attacker) {
-         ItemStack weapon = attacker.getInventory().getItemInMainHand();
-         if (weapon != null && weapon.hasItemMeta()) {
-            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
-            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
-            
-            if ("life_steal_sword".equals(itemId)) {
-               double damage = event.getDamage();
-               double healAmount = damage * 0.5;
-               double newHealth = Math.min(attacker.getHealth() + healAmount, attacker.getMaxHealth());
-               attacker.setHealth(newHealth);
-               // 播放生命恢复音效
-               attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
-            }
-         }
+   
+   /**
+    * 清理玩家所有属性修改
+    * 在玩家出局时调用，确保所有事件添加的属性都被清除
+    */
+   private void cleanupPlayerAttributes(Player player) {
+      // 清理体型修改
+      org.bukkit.attribute.AttributeInstance scaleAttr = player.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+      if (scaleAttr != null) {
+         scaleAttr.getModifiers().forEach(scaleAttr::removeModifier);
       }
       
-      // 剧毒匕首 - 攻击附加3秒中毒效果
-      if (event.getDamager() instanceof Player attacker) {
-         ItemStack weapon = attacker.getInventory().getItemInMainHand();
-         if (weapon != null && weapon.hasItemMeta()) {
-            NamespacedKey itemKey = new NamespacedKey(plugin, "special_item");
-            String itemId = weapon.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
-            
-            if ("poison_dagger".equals(itemId) && event.getEntity() instanceof org.bukkit.entity.LivingEntity target) {
-               target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 60, 0, false, false));
-            }
-         }
+      // 清理速度修改
+      org.bukkit.attribute.AttributeInstance speedAttr = player.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
+      if (speedAttr != null) {
+         speedAttr.getModifiers().forEach(speedAttr::removeModifier);
       }
+      
+      // 清理攻击伤害修改
+      org.bukkit.attribute.AttributeInstance attackDamage = player.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE);
+      if (attackDamage != null) {
+         attackDamage.getModifiers().forEach(attackDamage::removeModifier);
+      }
+      
+      // 清理跳跃强度修改
+      org.bukkit.attribute.AttributeInstance jumpAttr = player.getAttribute(org.bukkit.attribute.Attribute.JUMP_STRENGTH);
+      if (jumpAttr != null) {
+         jumpAttr.getModifiers().forEach(jumpAttr::removeModifier);
+      }
+      
+      // 清理方块交互距离修改
+      try {
+         org.bukkit.attribute.Attribute blockRangeAttr = org.bukkit.attribute.Attribute.valueOf("PLAYER_BLOCK_INTERACTION_RANGE");
+         org.bukkit.attribute.AttributeInstance blockRange = player.getAttribute(blockRangeAttr);
+         if (blockRange != null) {
+            blockRange.getModifiers().forEach(blockRange::removeModifier);
+         }
+      } catch (IllegalArgumentException e) {
+         // 属性不存在，忽略
+      }
+      
+      // 清理实体交互距离修改
+      try {
+         org.bukkit.attribute.Attribute entityRangeAttr = org.bukkit.attribute.Attribute.valueOf("PLAYER_ENTITY_INTERACTION_RANGE");
+         org.bukkit.attribute.AttributeInstance entityRange = player.getAttribute(entityRangeAttr);
+         if (entityRange != null) {
+            entityRange.getModifiers().forEach(entityRange::removeModifier);
+         }
+      } catch (IllegalArgumentException e) {
+         // 属性不存在，忽略
+      }
+      
+      // 移除所有药水效果
+      player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+      
+      // 恢复飞行状态
+      player.setAllowFlight(false);
+      player.setFlying(false);
+      
+      plugin.getLogger().info("[属性清理] 玩家 " + player.getName() + " 出局时所有属性已清理");
    }
-
 }

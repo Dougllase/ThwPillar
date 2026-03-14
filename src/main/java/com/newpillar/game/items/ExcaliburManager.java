@@ -37,15 +37,8 @@ public class ExcaliburManager {
     private static final double KNOCKBACK_STRENGTH = 0.3; // 减小击退效果
     private static final double END_ANGLE = -30.0; // 向下30度
     
-    // 冷却记录
-    private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
-    
     // 技能释放中玩家（限制移动）
     private final Set<UUID> castingPlayers = ConcurrentHashMap.newKeySet();
-    
-    // BossBar冷却显示
-    private final Map<UUID, BossBar> playerBossBars = new ConcurrentHashMap<>();
-    private final Map<UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> bossBarTasks = new ConcurrentHashMap<>();
     
     public ExcaliburManager(NewPillar plugin) {
         this.plugin = plugin;
@@ -53,32 +46,13 @@ public class ExcaliburManager {
     
     /**
      * 创建EX咖喱棒物品
+     * 注意：现在使用SpecialItemManager统一创建
      */
     public static ItemStack createExcalibur(NewPillar plugin) {
-        ItemStack item = new ItemStack(Material.DIAMOND_SWORD);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§6§l『§e§lEX§6§l咖喱棒』");
-            meta.setLore(Arrays.asList(
-                "§7传说中能释放金色光柱的圣剑",
-                "",
-                "§e右键释放: §f召唤金色光柱横扫前方",
-                "§7对路径上的敌人造成 §c6-13 §7点伤害",
-                "§7并造成小幅击退",
-                "",
-                "§8冷却时间: 1分30秒"
-            ));
-            
-            // 添加自定义物品ID
-            PersistentDataContainer container = meta.getPersistentDataContainer();
-            NamespacedKey key = new NamespacedKey(plugin, "item_id");
-            container.set(key, PersistentDataType.STRING, "excalibur");
-            
-            item.setItemMeta(meta);
-        }
-        return item;
+        // 使用SpecialItemManager创建，确保ID一致
+        return plugin.getSpecialItemManager().createSpecialItem(SpecialItemManager.SpecialItemType.EX_CURRY_STICK);
     }
-    
+
     /**
      * 检查物品是否为EX咖喱棒
      */
@@ -86,13 +60,9 @@ public class ExcaliburManager {
         if (item == null || item.getType() != Material.DIAMOND_SWORD) {
             return false;
         }
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return false;
-        
-        PersistentDataContainer container = meta.getPersistentDataContainer();
-        NamespacedKey key = new NamespacedKey(plugin, "item_id");
-        String itemId = container.get(key, PersistentDataType.STRING);
-        return "excalibur".equals(itemId);
+        // 使用SpecialItemManager的检查方法
+        SpecialItemManager.SpecialItemType type = plugin.getSpecialItemManager().getSpecialItemType(item);
+        return type == SpecialItemManager.SpecialItemType.EX_CURRY_STICK;
     }
     
     /**
@@ -100,24 +70,21 @@ public class ExcaliburManager {
      */
     public void useExcalibur(Player player) {
         UUID playerId = player.getUniqueId();
-        long currentTime = System.currentTimeMillis();
+        String itemId = "ex_curry_stick";
+        String itemName = "EX咖喱棒";
         
-        // 检查冷却
-        if (playerCooldowns.containsKey(playerId)) {
-            long lastUse = playerCooldowns.get(playerId);
-            long remaining = COOLDOWN_MILLIS - (currentTime - lastUse);
-            if (remaining > 0) {
-                long seconds = remaining / 1000;
-                player.sendMessage("§c『EX咖喱棒』冷却中，剩余 " + seconds + " 秒");
-                return;
-            }
+        // 使用新的冷却系统检查冷却
+        if (plugin.getItemCooldownManager().isOnCooldown(player, itemId, COOLDOWN_SECONDS)) {
+            long remaining = plugin.getItemCooldownManager().getRemainingCooldown(player, itemId, COOLDOWN_SECONDS);
+            player.sendMessage("§c『" + itemName + "』冷却中，剩余 " + remaining + " 秒");
+            return;
         }
         
-        // 设置冷却
-        playerCooldowns.put(playerId, currentTime);
-        
-        // 开始BossBar冷却显示
-        startBossBarDisplay(player);
+        // 设置冷却并使用新的冷却系统显示BossBar
+        plugin.getItemCooldownManager().setCooldown(player, itemId);
+        plugin.getItemCooldownManager().startCooldownDisplay(
+            player, itemId, itemName, COOLDOWN_SECONDS, BossBar.Color.RED
+        );
         
         // 释放技能
         releaseExcalibur(player);
@@ -308,128 +275,10 @@ public class ExcaliburManager {
     }
     
     /**
-     * 开始BossBar冷却显示
-     */
-    private void startBossBarDisplay(Player player) {
-        UUID playerId = player.getUniqueId();
-        
-        // 移除之前的BossBar
-        if (playerBossBars.containsKey(playerId)) {
-            BossBar oldBar = playerBossBars.get(playerId);
-            player.hideBossBar(oldBar);
-            playerBossBars.remove(playerId);
-        }
-        
-        // 取消之前的任务
-        if (bossBarTasks.containsKey(playerId)) {
-            bossBarTasks.get(playerId).cancel();
-            bossBarTasks.remove(playerId);
-        }
-        
-        // 创建BossBar
-        BossBar bossBar = BossBar.bossBar(
-            Component.text("§c『EX咖喱棒』冷却中"),
-            1.0f,
-            BossBar.Color.RED,
-            BossBar.Overlay.PROGRESS
-        );
-        player.showBossBar(bossBar);
-        playerBossBars.put(playerId, bossBar);
-        
-        // 创建更新任务
-        io.papermc.paper.threadedregions.scheduler.ScheduledTask task = 
-            Bukkit.getAsyncScheduler().runAtFixedRate(plugin, scheduledTask -> {
-                if (!player.isOnline()) {
-                    scheduledTask.cancel();
-                    BossBar bar = playerBossBars.remove(playerId);
-                    if (bar != null) {
-                        player.hideBossBar(bar);
-                    }
-                    return;
-                }
-                
-                long remaining = getRemainingCooldown(playerId);
-                if (remaining <= 0) {
-                    // 冷却完成
-                    bossBar.name(Component.text("§a『EX咖喱棒』已就绪！"));
-                    bossBar.color(BossBar.Color.GREEN);
-                    bossBar.progress(1.0f);
-                    
-                    // 2秒后移除
-                    Bukkit.getAsyncScheduler().runDelayed(plugin, t -> {
-                        player.hideBossBar(bossBar);
-                        playerBossBars.remove(playerId);
-                    }, 2L, TimeUnit.SECONDS);
-                    
-                    scheduledTask.cancel();
-                    bossBarTasks.remove(playerId);
-                    return;
-                }
-                
-                // 更新进度
-                float progress = (float) remaining / COOLDOWN_SECONDS;
-                bossBar.progress(Math.max(0.0f, Math.min(1.0f, progress)));
-                
-                // 格式化剩余时间
-                long minutes = remaining / 60;
-                long seconds = remaining % 60;
-                String timeStr = minutes > 0 ? 
-                    String.format("%d:%02d", minutes, seconds) : 
-                    String.format("%d秒", seconds);
-                
-                bossBar.name(Component.text("§c『EX咖喱棒』冷却中: §f" + timeStr));
-                
-                // 根据剩余时间改变颜色
-                if (progress > 0.6f) {
-                    bossBar.color(BossBar.Color.RED);
-                } else if (progress > 0.3f) {
-                    bossBar.color(BossBar.Color.YELLOW);
-                } else {
-                    bossBar.color(BossBar.Color.GREEN);
-                }
-            }, 0L, 500L, TimeUnit.MILLISECONDS);
-        
-        bossBarTasks.put(playerId, task);
-    }
-    
-    /**
-     * 获取剩余冷却时间（秒）
-     */
-    public long getRemainingCooldown(UUID playerId) {
-        if (!playerCooldowns.containsKey(playerId)) {
-            return 0;
-        }
-        
-        long lastUse = playerCooldowns.get(playerId);
-        long remaining = COOLDOWN_MILLIS - (System.currentTimeMillis() - lastUse);
-        return Math.max(0, remaining / 1000);
-    }
-    
-    /**
-     * 清理玩家数据
-     */
-    public void cleanupPlayer(UUID playerId) {
-        playerCooldowns.remove(playerId);
-        if (bossBarTasks.containsKey(playerId)) {
-            bossBarTasks.get(playerId).cancel();
-            bossBarTasks.remove(playerId);
-        }
-        if (playerBossBars.containsKey(playerId)) {
-            // 注意：这里无法直接获取Player对象来hideBossBar
-            // 玩家退出时会自动清理BossBar
-            playerBossBars.remove(playerId);
-        }
-    }
-    
-    /**
      * 插件关闭时清理
      */
     public void shutdown() {
-        for (io.papermc.paper.threadedregions.scheduler.ScheduledTask task : bossBarTasks.values()) {
-            task.cancel();
-        }
-        bossBarTasks.clear();
-        playerBossBars.clear();
-        playerCooldowns.clear();
+        // 清理技能释放中的玩家
+        castingPlayers.clear();
     }
 }

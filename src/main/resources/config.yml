@@ -38,8 +38,6 @@ timers:
   loot_time: 10
   # 事件触发间隔
   event_time: 60
-  # 边界收缩间隔（首次收缩前的等待时间）
-  border_time: 600
   # 游戏开始倒计时
   begin_time: 10
 
@@ -47,14 +45,15 @@ timers:
 border:
   # 初始边界大小
   initial_size: 80
-  # 每次收缩的格数
-  shrink_amount: 5
-  # 收缩动画持续时间（秒）
-  shrink_duration: 30
-  # 收缩间隔（秒）
-  shrink_interval: 15
   # 停止收缩的边界大小（小于此值进入平台崩溃）
   min_size: 10
+  # 收缩动画持续时间（秒）
+  shrink_duration: 30
+  # 全缩圈流程时长（分钟），最少5分钟
+  # 系统将根据此时间自动计算每轮收缩大小和间隔
+  total_shrink_duration_minutes: 5
+  # 目标收缩轮数（3-4轮）
+  target_rounds: 4
 
 # 游戏设置
 game:
@@ -100,3 +99,62 @@ collapse:
   interval: 10
   # 每次倒塌破坏的方块数
   blocks_per_tick: 3
+
+# 随机池（战利品表）配置
+# 以下配置定义了各游戏模式使用的随机池名称
+# 修改这些值可以切换不同的物品池
+# 使用 /np loottest <池名> [次数] 指令测试随机池
+loot_pools:
+  # 定时给予物品的随机池（主物品池）
+  # 用于: 定时给予玩家物品、部分事件奖励
+  # 默认: main
+  main_pool: "main"
+  
+  # 普通物品随机池
+  # 用于: 俄罗斯轮盘枪1-2颗子弹奖励
+  # 默认: common
+  common_pool: "common"
+  
+  # 稀有物品随机池（高级装备）
+  # 用于: 俄罗斯轮盘枪3颗子弹奖励
+  # 包含: 钻石装备、下界合金装备、弓弩/箭矢等战斗物品
+  # 默认: rare
+  rare_pool: "rare"
+  
+  # 史诗物品随机池（特殊物品）
+  # 用于: 俄罗斯轮盘枪4-5颗子弹奖励
+  # 默认: epic
+  epic_pool: "epic"
+  
+  # 传说物品随机池
+  # 用于: 俄罗斯轮盘枪6颗子弹奖励（如果存活）
+  # 默认: legendary
+  legendary_pool: "legendary"
+  
+  # 海洋钓鱼随机池
+  # 用于: 海洋地图钓鱼系统
+  # 默认: sea
+  sea_fishing_pool: "sea"
+  
+  # 钓鱼系统子池（由sea池引用）
+  # 鱼类随机池
+  fishing_fish_pool: "fishing/fish"
+  # 垃圾随机池
+  fishing_junk_pool: "fishing/junk"
+  # 宝藏随机池
+  fishing_treasure_pool: "fishing/treasure"
+  
+  # 药水随机池
+  # 用于: 部分事件和奖励
+  # 默认: potion
+  potion_pool: "potion"
+  
+  # 所有物品汇总池
+  # 用于: 某些特殊事件和调试
+  # 默认: all_item
+  all_item_pool: "all_item"
+  
+  # 特殊物品池（包含所有特殊物品）
+  # 用于: 特殊物品获取
+  # 默认: special/all
+  special_pool: "special/all"

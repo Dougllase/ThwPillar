@@ -254,6 +254,19 @@ public class SidebarManager {
          eventLine = "  " + COLOR_SECONDARY + "下一事件：" + COLOR_VALUE + BOLD + nextEventTime + "s";
       }
       
+      // 检查是否处于平台崩溃阶段
+      CollapseManager collapseManager = this.gameManager.getCollapseManager();
+      String borderLine;
+      if (collapseManager != null && collapseManager.isCollapseActive()) {
+         // 平台崩溃阶段显示
+         int currentRound = collapseManager.getCollapseTimes();
+         int maxRounds = collapseManager.getMaxCollapseRounds();
+         borderLine = "  " + COLOR_SECONDARY + "平台崩溃(" + currentRound + "/" + maxRounds + ")：" + COLOR_VALUE + BOLD + borderTime + "s";
+      } else {
+         // 边界收缩阶段显示
+         borderLine = "  " + COLOR_SECONDARY + "边界收缩：" + COLOR_VALUE + BOLD + borderTime + "s";
+      }
+      
       // 如果规则是NONE，不显示规则行
       RuleType currentRule = this.gameManager.getRuleSystem().getCurrentRule();
 
@@ -267,7 +280,7 @@ public class SidebarManager {
             "  " + COLOR_SECONDARY + "游戏人数：" + COLOR_VALUE + BOLD + aliveCount + "/" + COLOR_VALUE_GOLD + BOLD + totalCount,
             "  " + COLOR_SECONDARY + "游戏时长：" + COLOR_VALUE + BOLD + gameTimeMin + "m " + gameTimeSec + "s",
             eventLine,
-            "  " + COLOR_SECONDARY + "边界收缩：" + COLOR_VALUE + BOLD + borderTime + "s",
+            borderLine,
             serverLine
          );
       } else {
@@ -278,7 +291,7 @@ public class SidebarManager {
             "  " + COLOR_SECONDARY + "游戏时长：" + COLOR_VALUE + BOLD + gameTimeMin + "m " + gameTimeSec + "s",
             "  " + COLOR_SECONDARY + "当前规则：" + COLOR_VALUE_PURPLE + BOLD + ruleName,
             eventLine,
-            "  " + COLOR_SECONDARY + "边界收缩：" + COLOR_VALUE + BOLD + borderTime + "s",
+            borderLine,
             serverLine
          );
       }

@@ -240,10 +240,45 @@ public class StatisticsSystem {
     }
     
     private void loadData() {
-        // 从配置文件加载数据（兼容旧版本）
+        // 优先从数据库加载所有玩家数据
+        DatabaseManager db = plugin.getDatabaseManager();
+        if (db != null) {
+            Map<UUID, DatabaseManager.PlayerStatisticsData> dbStats = db.loadAllStatistics();
+            for (Map.Entry<UUID, DatabaseManager.PlayerStatisticsData> entry : dbStats.entrySet()) {
+                UUID uuid = entry.getKey();
+                DatabaseManager.PlayerStatisticsData data = entry.getValue();
+                PlayerStatistics stats = new PlayerStatistics(uuid);
+                
+                stats.totalKills = data.totalKills();
+                stats.totalDeaths = data.totalDeaths();
+                stats.totalWins = data.totalWins();
+                stats.totalGamesPlayed = data.totalGamesPlayed();
+                stats.damageDealt = data.damageDealt();
+                stats.damageTaken = data.damageTaken();
+                stats.blocksPlaced = data.blocksPlaced();
+                stats.blocksBroken = data.blocksBroken();
+                stats.itemsLooted = data.itemsLooted();
+                stats.highestWinStreak = data.highestWinStreak();
+                stats.currentWinStreak = data.currentWinStreak();
+                stats.totalDamageDealt = data.totalDamageDealt();
+                stats.totalDamageTaken = data.totalDamageTaken();
+                stats.totalBlocksBroken = data.totalBlocksBroken();
+                stats.totalBlocksPlaced = data.totalBlocksPlaced();
+                stats.totalItemsLooted = data.totalItemsLooted();
+                
+                playerStats.put(uuid, stats);
+            }
+        }
+        
+        // 从配置文件加载数据（兼容旧版本，补充数据库中没有的数据）
         if (plugin.getConfig().contains("statistics")) {
             for (String uuidStr : plugin.getConfig().getConfigurationSection("statistics").getKeys(false)) {
                 UUID uuid = UUID.fromString(uuidStr);
+                // 如果数据库中已存在，跳过
+                if (playerStats.containsKey(uuid)) {
+                    continue;
+                }
+                
                 PlayerStatistics stats = new PlayerStatistics(uuid);
                 
                 String path = "statistics." + uuidStr;
@@ -263,48 +298,55 @@ public class StatisticsSystem {
     }
     
     private void saveData() {
-        // 保存到数据库
-        DatabaseManager db = plugin.getDatabaseManager();
-        if (db != null) {
-            for (Map.Entry<UUID, PlayerStatistics> entry : playerStats.entrySet()) {
-                UUID uuid = entry.getKey();
-                PlayerStatistics stats = entry.getValue();
-                db.saveStatistics(uuid, stats.totalKills, stats.totalDeaths, stats.totalWins,
-                    stats.totalGamesPlayed, stats.damageDealt, stats.damageTaken,
-                    stats.blocksPlaced, stats.blocksBroken, stats.itemsLooted,
-                    stats.highestWinStreak, stats.currentWinStreak, stats.totalDamageDealt,
-                    stats.totalDamageTaken, stats.totalBlocksBroken, stats.totalBlocksPlaced,
-                    stats.totalItemsLooted);
+        // 异步保存到数据库，避免阻塞主线程
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            // 保存到数据库
+            DatabaseManager db = plugin.getDatabaseManager();
+            if (db != null) {
+                for (Map.Entry<UUID, PlayerStatistics> entry : playerStats.entrySet()) {
+                    UUID uuid = entry.getKey();
+                    PlayerStatistics stats = entry.getValue();
+                    db.saveStatistics(uuid, stats.totalKills, stats.totalDeaths, stats.totalWins,
+                        stats.totalGamesPlayed, stats.damageDealt, stats.damageTaken,
+                        stats.blocksPlaced, stats.blocksBroken, stats.itemsLooted,
+                        stats.highestWinStreak, stats.currentWinStreak, stats.totalDamageDealt,
+                        stats.totalDamageTaken, stats.totalBlocksBroken, stats.totalBlocksPlaced,
+                        stats.totalItemsLooted);
+                }
             }
-        }
 
-        // 同时保存到配置文件（作为备份）
-        for (Map.Entry<UUID, PlayerStatistics> entry : playerStats.entrySet()) {
-            String uuidStr = entry.getKey().toString();
-            PlayerStatistics stats = entry.getValue();
-            String path = "statistics." + uuidStr;
+            // 同时保存到配置文件（作为备份）
+            try {
+                for (Map.Entry<UUID, PlayerStatistics> entry : playerStats.entrySet()) {
+                    String uuidStr = entry.getKey().toString();
+                    PlayerStatistics stats = entry.getValue();
+                    String path = "statistics." + uuidStr;
 
-            plugin.getConfig().set(path + ".totalKills", stats.totalKills);
-            plugin.getConfig().set(path + ".totalDeaths", stats.totalDeaths);
-            plugin.getConfig().set(path + ".totalWins", stats.totalWins);
-            plugin.getConfig().set(path + ".totalGamesPlayed", stats.totalGamesPlayed);
-            plugin.getConfig().set(path + ".damageDealt", stats.damageDealt);
-            plugin.getConfig().set(path + ".damageTaken", stats.damageTaken);
-            plugin.getConfig().set(path + ".blocksPlaced", stats.blocksPlaced);
-            plugin.getConfig().set(path + ".blocksBroken", stats.blocksBroken);
-            plugin.getConfig().set(path + ".itemsLooted", stats.itemsLooted);
+                    plugin.getConfig().set(path + ".totalKills", stats.totalKills);
+                    plugin.getConfig().set(path + ".totalDeaths", stats.totalDeaths);
+                    plugin.getConfig().set(path + ".totalWins", stats.totalWins);
+                    plugin.getConfig().set(path + ".totalGamesPlayed", stats.totalGamesPlayed);
+                    plugin.getConfig().set(path + ".damageDealt", stats.damageDealt);
+                    plugin.getConfig().set(path + ".damageTaken", stats.damageTaken);
+                    plugin.getConfig().set(path + ".blocksPlaced", stats.blocksPlaced);
+                    plugin.getConfig().set(path + ".blocksBroken", stats.blocksBroken);
+                    plugin.getConfig().set(path + ".itemsLooted", stats.itemsLooted);
 
-            // 保存新增统计项
-            plugin.getConfig().set(path + ".highestWinStreak", stats.highestWinStreak);
-            plugin.getConfig().set(path + ".currentWinStreak", stats.currentWinStreak);
-            plugin.getConfig().set(path + ".totalDamageDealt", stats.totalDamageDealt);
-            plugin.getConfig().set(path + ".totalDamageTaken", stats.totalDamageTaken);
-            plugin.getConfig().set(path + ".totalBlocksBroken", stats.totalBlocksBroken);
-            plugin.getConfig().set(path + ".totalBlocksPlaced", stats.totalBlocksPlaced);
-            plugin.getConfig().set(path + ".totalItemsLooted", stats.totalItemsLooted);
-        }
+                    // 保存新增统计项
+                    plugin.getConfig().set(path + ".highestWinStreak", stats.highestWinStreak);
+                    plugin.getConfig().set(path + ".currentWinStreak", stats.currentWinStreak);
+                    plugin.getConfig().set(path + ".totalDamageDealt", stats.totalDamageDealt);
+                    plugin.getConfig().set(path + ".totalDamageTaken", stats.totalDamageTaken);
+                    plugin.getConfig().set(path + ".totalBlocksBroken", stats.totalBlocksBroken);
+                    plugin.getConfig().set(path + ".totalBlocksPlaced", stats.totalBlocksPlaced);
+                    plugin.getConfig().set(path + ".totalItemsLooted", stats.totalItemsLooted);
+                }
 
-        plugin.saveConfig();
+                plugin.saveConfig();
+            } catch (Exception e) {
+                plugin.getLogger().warning("保存统计信息到配置文件失败: " + e.getMessage());
+            }
+        });
     }
     
     /**
@@ -326,28 +368,32 @@ public class StatisticsSystem {
         }
 
         // 同时保存到配置文件
-        String uuidStr = uuid.toString();
-        String path = "statistics." + uuidStr;
+        try {
+            String uuidStr = uuid.toString();
+            String path = "statistics." + uuidStr;
 
-        plugin.getConfig().set(path + ".totalKills", stats.totalKills);
-        plugin.getConfig().set(path + ".totalDeaths", stats.totalDeaths);
-        plugin.getConfig().set(path + ".totalWins", stats.totalWins);
-        plugin.getConfig().set(path + ".totalGamesPlayed", stats.totalGamesPlayed);
-        plugin.getConfig().set(path + ".damageDealt", stats.damageDealt);
-        plugin.getConfig().set(path + ".damageTaken", stats.damageTaken);
-        plugin.getConfig().set(path + ".blocksPlaced", stats.blocksPlaced);
-        plugin.getConfig().set(path + ".blocksBroken", stats.blocksBroken);
-        plugin.getConfig().set(path + ".itemsLooted", stats.itemsLooted);
+            plugin.getConfig().set(path + ".totalKills", stats.totalKills);
+            plugin.getConfig().set(path + ".totalDeaths", stats.totalDeaths);
+            plugin.getConfig().set(path + ".totalWins", stats.totalWins);
+            plugin.getConfig().set(path + ".totalGamesPlayed", stats.totalGamesPlayed);
+            plugin.getConfig().set(path + ".damageDealt", stats.damageDealt);
+            plugin.getConfig().set(path + ".damageTaken", stats.damageTaken);
+            plugin.getConfig().set(path + ".blocksPlaced", stats.blocksPlaced);
+            plugin.getConfig().set(path + ".blocksBroken", stats.blocksBroken);
+            plugin.getConfig().set(path + ".itemsLooted", stats.itemsLooted);
 
-        // 保存新增统计项
-        plugin.getConfig().set(path + ".highestWinStreak", stats.highestWinStreak);
-        plugin.getConfig().set(path + ".currentWinStreak", stats.currentWinStreak);
-        plugin.getConfig().set(path + ".totalDamageDealt", stats.totalDamageDealt);
-        plugin.getConfig().set(path + ".totalDamageTaken", stats.totalDamageTaken);
-        plugin.getConfig().set(path + ".totalBlocksBroken", stats.totalBlocksBroken);
-        plugin.getConfig().set(path + ".totalBlocksPlaced", stats.totalBlocksPlaced);
-        plugin.getConfig().set(path + ".totalItemsLooted", stats.totalItemsLooted);
-        plugin.saveConfig();
+            // 保存新增统计项
+            plugin.getConfig().set(path + ".highestWinStreak", stats.highestWinStreak);
+            plugin.getConfig().set(path + ".currentWinStreak", stats.currentWinStreak);
+            plugin.getConfig().set(path + ".totalDamageDealt", stats.totalDamageDealt);
+            plugin.getConfig().set(path + ".totalDamageTaken", stats.totalDamageTaken);
+            plugin.getConfig().set(path + ".totalBlocksBroken", stats.totalBlocksBroken);
+            plugin.getConfig().set(path + ".totalBlocksPlaced", stats.totalBlocksPlaced);
+            plugin.getConfig().set(path + ".totalItemsLooted", stats.totalItemsLooted);
+            plugin.saveConfig();
+        } catch (Exception e) {
+            plugin.getLogger().warning("保存玩家统计信息到配置文件失败: " + e.getMessage());
+        }
     }
     
     public static class PlayerStatistics {

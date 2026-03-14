@@ -64,24 +64,11 @@ public class GameManager {
    private int gameTimeSec = 0;
    private ScheduledTask countdownTask;
    private ScheduledTask gameLoopTask;
-   private ScheduledTask borderShrinkTask;
-   private ScheduledTask collapseTask;
    private ScheduledTask autoStartTask;
-   private int collapseTimes = 0;
    private int autoStartCountdown = 0;
    private boolean autoStartActive = false;
    private boolean autoStartEnabled = true; // 自动开始功能开关
    private int autoStartMinPlayers = 2; // 自动开始所需的最少玩家数量
-   
-   // 边界收缩倒计时
-   private int borderShrinkCountdown = 0;
-   private ScheduledTask borderCountdownTask = null;
-   
-   // 规则投票系统
-   private List<RuleType> votingRules = new ArrayList<>();
-   private Map<UUID, RuleType> playerVotes = new HashMap<>();
-   private boolean votingLocked = false;
-   private RuleType selectedRule = RuleType.NONE;
    
    // 地图随机选择
    private MapType selectedMap = MapType.WOOL;
@@ -97,7 +84,6 @@ public class GameManager {
    private final RuleSystem ruleSystem;
    private MapType currentMapType = MapType.WOOL;
    private Player lookAtMeTarget = null;
-   private boolean keyInversionActive = false;
    private final com.newpillar.cache.PlayerCache playerCache = new com.newpillar.cache.PlayerCache();
    
    // Made in Heaven 时间加速相关
@@ -189,7 +175,8 @@ public class GameManager {
    private void loadConfig() {
       this.lootTimer = this.plugin.getConfig().getInt("timers.loot_time", 30);
       this.eventTimer = this.plugin.getConfig().getInt("timers.event_time", 60);
-      this.borderTimer = this.plugin.getConfig().getInt("timers.border_time", 600); // 首次收缩前等待时间（默认600秒=10分钟）
+      // borderTimer 现在由 BorderManager 动态计算，这里保留默认值
+      this.borderTimer = 60;
       this.beginTimer = this.plugin.getConfig().getInt("timers.begin_time", 10);
       this.autoStartEnabled = this.plugin.getConfig().getBoolean("game.auto-start-enabled", true); // 默认启用自动开始
       this.autoStartMinPlayers = this.plugin.getConfig().getInt("game.auto-start-min-players", 2); // 默认最少2人
@@ -209,6 +196,7 @@ public class GameManager {
    private static final int MAX_GAME_PLAYERS = 12;
 
    public void startGame(boolean force, boolean skipMapGeneration) {
+      this.plugin.getLogger().info("[调试] startGame 被调用 - force=" + force + ", skipMapGeneration=" + skipMapGeneration + ", gameStatus=" + this.gameStatus);
       if (force || this.canStartGame()) {
          if (force) {
             this.forceJoinAllPlayers();
@@ -219,6 +207,13 @@ public class GameManager {
          } else {
             this.gameStatus = GameStatus.PLAYING;
             this.gameId++;
+            this.plugin.getLogger().info("[调试] 游戏开始 - gameId=" + this.gameId + ", readyPlayers=" + this.readyPlayers.size());
+
+            // 重置所有玩家的本局统计数据
+            this.plugin.getStatisticsSystem().resetGameStats();
+            
+            // 通知ThwReward子插件游戏开始
+            this.plugin.getThwRewardIntegration().onGameStart(this.gameId);
 
             for (PlayerData data : this.playerDataMap.values()) {
                data.setDeathCheck(0);
@@ -271,6 +266,14 @@ public class GameManager {
                });
             }
 
+            // 游戏开始前，清除所有在线玩家的属性效果（防止上一局的残留效果）
+            for (Player player : Bukkit.getOnlinePlayers()) {
+               Bukkit.getRegionScheduler().execute(this.plugin, player.getLocation(), () -> {
+                  // 清理所有属性修改
+                  this.cleanupPlayerAttributes(player);
+               });
+            }
+            
             for (UUID uuidxx : this.readyPlayers) {
                Player player = Bukkit.getPlayer(uuidxx);
                if (player != null && player.isOnline()) {
@@ -293,6 +296,10 @@ public class GameManager {
             }
 
             this.sidebarManager.showInGameSidebar();
+            
+            // 广播游戏开始信息（地图、人数等）
+            this.broadcastGameStartInfo(totalPlayers);
+            
             this.startCountdown();
             if (world != null) {
                Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> world.setTime(1000L));
@@ -301,8 +308,6 @@ public class GameManager {
             if (world != null) {
                Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> world.setGameRule(GameRule.KEEP_INVENTORY, false));
             }
-
-            this.broadcastMessage("§a游戏开始！准备倒计时...");
          }
       }
    }
@@ -313,12 +318,36 @@ public class GameManager {
 
    private void startCountdown() {
       World world = this.getGameWorld();
+      this.plugin.getLogger().info("[调试] startCountdown 被调用 - countdownTask=" + (this.countdownTask != null ? "非空" : "空"));
       if (world != null) {
+         // 检查是否已有计时器在运行，防止重复启动
+         if (this.countdownTask != null) {
+            this.plugin.getLogger().info("[调试] 倒计时已经在运行中，跳过重复启动");
+            return;
+         }
          int[] remaining = new int[]{this.beginTimer};
+         
+         // 发送初始倒计时消息 - 直接向每个玩家发送
+         for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player != null && player.isOnline()) {
+               player.sendMessage("§e笼子将在 §c" + this.beginTimer + " §e秒后破坏！");
+            }
+         }
+         
          this.countdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
             if (this.gameStatus != GameStatus.PLAYING) {
                scheduledTask.cancel();
             } else {
+               // 在关键时间点发送消息提示（10秒、5秒、最后5秒每秒）
+               if (remaining[0] == 10 || remaining[0] == 5 || (remaining[0] <= 3 && remaining[0] > 0)) {
+                  final int currentRemaining = remaining[0];
+                  for (Player player : Bukkit.getOnlinePlayers()) {
+                     if (player != null && player.isOnline()) {
+                        player.sendMessage("§e笼子破坏倒计时: §c" + currentRemaining + " §e秒");
+                     }
+                  }
+               }
+               
                if (remaining[0] <= 5 && remaining[0] > 0) {
                   String color = this.getCountdownColor(remaining[0]);
                   String title = color + remaining[0];
@@ -374,10 +403,13 @@ public class GameManager {
       World world = this.getGameWorld();
       if (world != null) {
          Location center = this.mapRegion.getCenter();
-         org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
-         worldBorder.setCenter(center);
-         worldBorder.setSize(100.0); // 初始边界大小 100x100（从100开始收缩）
-         this.plugin.getLogger().info("世界边界已设置：中心(" + center.getBlockX() + ", " + center.getBlockZ() + "), 大小: 100");
+         // 使用GlobalRegionScheduler执行世界边界操作
+         Bukkit.getGlobalRegionScheduler().execute(this.plugin, () -> {
+            org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
+            worldBorder.setCenter(center);
+            worldBorder.setSize(100.0); // 初始边界大小 100x100（从100开始收缩）
+            this.plugin.getLogger().info("世界边界已设置：中心(" + center.getBlockX() + ", " + center.getBlockZ() + "), 大小: 100");
+         });
       }
 
       int supportedCount = this.templateManager.getClosestSupportedCount(this.alivePlayers.size());
@@ -472,7 +504,11 @@ public class GameManager {
       this.lastGamePlayers.addAll(selected);
       
       this.plugin.getLogger().info("[玩家选择] 已选择 " + selected.size() + " 名玩家参与游戏，" + notSelected.size() + " 名玩家等待下局");
-      this.broadcastMessage("§e本局游戏共有 " + allReadyPlayers.size() + " 人准备，随机选中 " + selected.size() + " 人参与！");
+      if (allReadyPlayers.size() > MAX_GAME_PLAYERS) {
+         this.broadcastMessage("§e人数超出限制！共有 " + allReadyPlayers.size() + " 人准备，随机选中 " + selected.size() + " 人参与游戏。(" + allReadyPlayers.size() + "/" + MAX_GAME_PLAYERS + ")");
+      } else {
+         this.broadcastMessage("§e本局游戏共有 " + allReadyPlayers.size() + " 人准备，选中 " + selected.size() + " 人参与！");
+      }
       
       return selected;
    }
@@ -508,8 +544,12 @@ public class GameManager {
    private void startGameLoop() {
       World world = this.getGameWorld();
       if (world != null) {
-         // 启动边界收缩（延迟borderTimer秒后）
-         this.startBorderShrink(world);
+         // 重置崩溃管理器，确保每局游戏都是全新状态
+         this.collapseManager.reset();
+         
+         // 初始化边界并启动边界收缩（由BorderManager管理）
+         this.borderManager.initBorder(world, new Location(world, 0, 0, 0));
+         this.borderManager.startBorderShrink(world);
 
          this.gameLoopTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world, 0, 0, scheduledTask -> {
             if (this.gameStatus != GameStatus.PLAYING) {
@@ -530,197 +570,7 @@ public class GameManager {
       }
    }
 
-   /**
-    * 启动边界收缩 - 与数据包一致：分阶段收缩
-    */
-   private void startBorderShrink(World world) {
-      // 初始化倒计时
-      this.borderShrinkCountdown = this.borderTimer;
-      
-      // 启动倒计时任务
-      Location centerLoc = world.getWorldBorder().getCenter();
-      this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
-         @Override
-         public void accept(ScheduledTask scheduledTask) {
-            if (GameManager.this.gameStatus != GameStatus.PLAYING) {
-               scheduledTask.cancel();
-               return;
-            }
-            
-            GameManager.this.borderShrinkCountdown--;
-            
-            if (GameManager.this.borderShrinkCountdown <= 0) {
-               scheduledTask.cancel();
-               // 开始分阶段收缩循环
-               GameManager.this.runBorderShrinkCycle(world);
-            }
-         }
-      }, 20L, 20L); // 每秒更新一次
-   }
 
-   /**
-    * 边界收缩周期 - 优化为更快节奏
-    * 初始大小100，每次减少10，最终到30，然后平台崩溃
-    * 从100->90->80->...->30，共7次收缩，每次间隔20秒
-    */
-   private void runBorderShrinkCycle(World world) {
-      org.bukkit.WorldBorder worldBorder = world.getWorldBorder();
-      double currentSize = worldBorder.getSize();
-      Location centerLoc = worldBorder.getCenter();
-
-      // 如果边界大于等于最小尺寸(30)，继续收缩
-      if (currentSize >= 30.0) {
-         // 减少10格，用时15秒（动画时间）
-         worldBorder.setSize(currentSize - 10, 15L);
-         this.broadcastMessage("§6§l[幸运之柱] §c边界开始收缩！当前大小: " + (int)currentSize + " -> " + (int)(currentSize - 10));
-         this.debugLogger.debug("[Border] Shrink: " + currentSize + " -> " + (currentSize - 10));
-
-         // 设置倒计时为20秒（15秒动画 + 5秒间隔）
-         this.borderShrinkCountdown = 20;
-         
-         // 启动倒计时任务，20秒后再次收缩
-         this.borderCountdownTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
-            @Override
-            public void accept(ScheduledTask scheduledTask) {
-               if (GameManager.this.gameStatus != GameStatus.PLAYING) {
-                  scheduledTask.cancel();
-                  return;
-               }
-               
-               GameManager.this.borderShrinkCountdown--;
-               
-               if (GameManager.this.borderShrinkCountdown <= 0) {
-                  scheduledTask.cancel();
-                  if (GameManager.this.gameStatus == GameStatus.PLAYING) {
-                     GameManager.this.runBorderShrinkCycle(world);
-                  }
-               }
-            }
-         }, 20L, 20L);
-      } else {
-         // 边界小于30格，触发平台崩溃（半径缩小模式）
-         this.startPlatformCollapseRadiusMode(world);
-      }
-   }
-
-   /**
-    * 平台崩溃机制 - 半径缩小模式
-    * 以地图中心为圆心，按半径从大到小依次破坏方块
-    * 第1轮：91格外 → 第2轮：61格外 → 第3轮：31格外 → 第4轮：逐格缩小直至0
-    */
-   private void startPlatformCollapseRadiusMode(World world) {
-      if (this.collapseTimes >= 4) {
-         return; // 最多4轮
-      }
-
-      this.collapseTimes++;
-      this.broadcastMessage("§6§l[幸运之柱] §c平台开始崩溃！第 " + this.collapseTimes + "/4 轮");
-      this.debugLogger.debug("平台崩溃（半径模式）第 " + this.collapseTimes + " 次");
-
-      // 定义每轮的半径范围
-      int outerRadius, innerRadius;
-      boolean isFinalRound = false;
-      switch (this.collapseTimes) {
-         case 1 -> { 
-            outerRadius = 100; 
-            innerRadius = 91; 
-            this.broadcastMessage("§c§l91格半径外的方块开始消失！");
-         }
-         case 2 -> { 
-            outerRadius = 91; 
-            innerRadius = 61; 
-            this.broadcastMessage("§c§l61-91格半径的方块开始消失！");
-         }
-         case 3 -> { 
-            outerRadius = 61; 
-            innerRadius = 31; 
-            this.broadcastMessage("§c§l31-61格半径的方块开始消失！");
-         }
-         case 4 -> { 
-            outerRadius = 31; 
-            innerRadius = 0; 
-            isFinalRound = true;
-            this.broadcastMessage("§c§l最后阶段！平台将从外向内逐格崩溃！");
-         }
-         default -> { return; }
-      }
-
-      Location centerLoc = new Location(world, 0, 0, 0);
-      
-      if (!isFinalRound) {
-         // 前3轮：直接破坏指定半径范围内的所有方块
-         int blocksPerTick = 500; // 每tick破坏500个方块
-         int[] currentRadius = {outerRadius};
-         
-         this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
-            int blocksBroken = 0;
-            int radius = currentRadius[0];
-            
-            // 在当前半径层破坏方块（整层Y轴）
-            for (int x = -radius; x <= radius && blocksBroken < blocksPerTick; x++) {
-               for (int z = -radius; z <= radius && blocksBroken < blocksPerTick; z++) {
-                  // 检查是否在圆环范围内
-                  double distance = Math.sqrt(x * x + z * z);
-                  if (distance >= innerRadius && distance < outerRadius) {
-                     // 破坏该位置的所有Y层方块
-                     for (int y = -64; y <= 320; y++) {
-                        world.getBlockAt(x, y, z).setType(Material.AIR);
-                     }
-                     blocksBroken++;
-                  }
-               }
-            }
-            
-            currentRadius[0]--;
-            
-            // 检查是否完成本轮
-            if (currentRadius[0] < innerRadius || this.gameStatus != GameStatus.PLAYING) {
-               scheduledTask.cancel();
-               this.debugLogger.debug("平台崩溃第 " + this.collapseTimes + " 轮完成");
-               
-               // 延迟后开始下一轮
-               if (this.collapseTimes < 4 && this.gameStatus == GameStatus.PLAYING) {
-                  Bukkit.getRegionScheduler().runDelayed(this.plugin, centerLoc, task -> {
-                     if (GameManager.this.gameStatus == GameStatus.PLAYING) {
-                        GameManager.this.startPlatformCollapseRadiusMode(world);
-                     }
-                  }, 100L); // 5秒间隔
-               }
-            }
-         }, 0L, 1L); // 每tick执行
-         
-      } else {
-         // 第4轮：逐格缩小，一格一格地破坏
-         int[] currentRadius = {outerRadius}; // 从31格开始
-         
-         this.collapseTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, scheduledTask -> {
-            int radius = currentRadius[0];
-            
-            // 破坏当前半径层的所有方块（整圈）
-            for (int x = -radius; x <= radius; x++) {
-               for (int z = -radius; z <= radius; z++) {
-                  double distance = Math.sqrt(x * x + z * z);
-                  // 在当前半径±0.5范围内
-                  if (distance >= radius - 0.5 && distance <= radius + 0.5) {
-                     for (int y = -64; y <= 320; y++) {
-                        world.getBlockAt(x, y, z).setType(Material.AIR);
-                     }
-                  }
-               }
-            }
-            
-            this.broadcastMessage("§c§l平台崩溃中... 剩余半径: " + radius + " 格");
-            currentRadius[0]--;
-            
-            // 检查是否完全崩溃
-            if (currentRadius[0] < 0 || this.gameStatus != GameStatus.PLAYING) {
-               scheduledTask.cancel();
-               this.debugLogger.debug("平台完全崩溃！");
-               this.broadcastMessage("§c§l平台已完全崩溃！");
-            }
-         }, 0L, 10L); // 每0.5秒缩小一格
-      }
-   }
 
    public void endGame() {
       this.endGame(false);
@@ -795,22 +645,20 @@ public class GameManager {
       this.gameTimeSec = 0;
       if (this.countdownTask != null) {
          this.countdownTask.cancel();
+         this.countdownTask = null;
+         this.plugin.getLogger().info("[调试] endGame - 倒计时任务已取消并置空");
       }
 
       if (this.gameLoopTask != null) {
          this.gameLoopTask.cancel();
+         this.gameLoopTask = null;
+         this.plugin.getLogger().info("[调试] endGame - 游戏循环任务已取消并置空");
       }
 
-      if (this.borderShrinkTask != null) {
-         this.borderShrinkTask.cancel();
-      }
-
-      if (this.collapseTask != null) {
-         this.collapseTask.cancel();
-      }
-
-      // 重置崩溃次数
-      this.collapseTimes = 0;
+      // 停止边界收缩和平台崩溃
+      this.borderManager.stop();
+      this.collapseManager.stop();
+      this.collapseManager.reset();
 
       this.itemSystem.stop();
       this.plugin.getItemEffectManager().stopCooldownUpdateTask();
@@ -891,6 +739,23 @@ public class GameManager {
          if (finalWinner != null) {
             this.plugin.getStatisticsSystem().recordWin(finalWinner);
          }
+         
+         // 记录所有参与者的游戏场次和胜负
+         for (UUID participantUuid : GameManager.this.playerDataMap.keySet()) {
+            Player participant = Bukkit.getPlayer(participantUuid);
+            if (participant != null && participant.isOnline()) {
+               this.plugin.getStatisticsSystem().recordGamePlayed(participant);
+               // 如果不是胜利者，记录失败
+               if (finalWinner == null || !participantUuid.equals(finalWinner.getUniqueId())) {
+                  this.plugin.getStatisticsSystem().recordLoss(participant);
+               }
+            }
+         }
+         
+         // 通知ThwReward子插件游戏结束
+         List<UUID> winners = finalWinner != null ? java.util.Collections.singletonList(finalWinner.getUniqueId()) : java.util.Collections.emptyList();
+         List<UUID> participants = new java.util.ArrayList<>(GameManager.this.playerDataMap.keySet());
+         this.plugin.getThwRewardIntegration().onGameEnd(this.gameId, !winners.isEmpty(), winners, participants);
       }
 
       // 延迟15秒后清理和传送（庆祝时间）
@@ -923,18 +788,20 @@ public class GameManager {
 
                Location lobby = GameManager.this.getLobbyLocation();
                
-               // 传送所有玩家回大厅（先传送，后设置游戏模式）
+               // 传送所有玩家回大厅（先设置冒险模式，再传送）
                for (Player player : Bukkit.getOnlinePlayers()) {
                   UUID uuid = player.getUniqueId();
                   PlayerData data = GameManager.this.playerDataMap.get(uuid);
                   
                   if (data != null) {
-                     // 先传送到大厅
+                     // 先设置为冒险模式
+                     player.setGameMode(GameMode.ADVENTURE);
+                     // 再传送到大厅
                      player.teleportAsync(lobby);
                   }
                }
                
-               // 延迟后重置所有玩家属性和游戏模式（使用 Folia 的 AsyncScheduler）
+               // 延迟后重置所有玩家属性（使用 Folia 的 AsyncScheduler）
                Bukkit.getAsyncScheduler().runDelayed(GameManager.this.plugin, (scheduledTask) -> {
                   Bukkit.getGlobalRegionScheduler().execute(GameManager.this.plugin, () -> {
                      for (Player player : Bukkit.getOnlinePlayers()) {
@@ -943,8 +810,8 @@ public class GameManager {
                            player.getInventory().clear();
                            // 重置玩家属性（包括体型、攻击伤害、移动速度、跳跃力度、重力等）
                            GameManager.this.ruleSystem.resetPlayerAttributes(player);
-                           // 设置为冒险模式（大厅模式）
-                           player.setGameMode(GameMode.ADVENTURE);
+                           // 给予投票物品
+                           giveVoteItem(player);
                         });
                      }
                   });
@@ -1156,18 +1023,19 @@ public class GameManager {
                   player.sendMessage("§6§l═══════════════════════════");
                   
                   // 如果正在进行规则投票，向新玩家显示投票信息
-                  if (this.isVotingActive() && !this.votingRules.isEmpty()) {
+                  if (this.voteManager.isVotingActive()) {
+                     List<RuleType> votingRules = this.voteManager.getVotingRules();
                      player.sendMessage("");
                      player.sendMessage("§6§l═══════════════════════════");
                      player.sendMessage("§e§l        规则投票进行中");
                      player.sendMessage("");
-                     for (int i = 0; i < this.votingRules.size(); i++) {
-                        RuleType rule = this.votingRules.get(i);
+                     for (int i = 0; i < votingRules.size(); i++) {
+                        RuleType rule = votingRules.get(i);
                         player.sendMessage("§" + rule.getColor() + "§l[" + (i + 1) + "] " + rule.getName());
                         player.sendMessage("§7" + rule.getDescription());
                         player.sendMessage("");
                      }
-                     player.sendMessage("§e使用 §f/vote <编号> §e进行规则投票");
+                     player.sendMessage("§e点击投票书或使用 §f/vote §e打开投票界面");
                      player.sendMessage("§6§l═══════════════════════════");
                   }
                }
@@ -1239,14 +1107,17 @@ public class GameManager {
          this.autoStartActive = true;
          
          // 根据人数设置倒计时时间
-         if (readyCount == 2) {
+         // 2-6人: 60秒, 6-8人: 30秒, 8-10人: 25秒, 10人: 20秒
+         if (readyCount >= 2 && readyCount <= 6) {
             this.autoStartCountdown = 60;
-         } else if (readyCount >= 3 && readyCount <= 5) {
-            this.autoStartCountdown = 45;
-         } else if (readyCount >= 6 && readyCount <= 8) {
+         } else if (readyCount > 6 && readyCount <= 8) {
             this.autoStartCountdown = 30;
+         } else if (readyCount > 8 && readyCount < 10) {
+            this.autoStartCountdown = 25;
+         } else if (readyCount >= 10) {
+            this.autoStartCountdown = 20;
          } else {
-            this.autoStartCountdown = 15;
+            this.autoStartCountdown = 60;
          }
          
          this.plugin.getLogger().info("[调试] 倒计时设置为: " + this.autoStartCountdown + " 秒");
@@ -1260,7 +1131,7 @@ public class GameManager {
          
          // 初始化规则投票
          this.plugin.getLogger().info("[调试] 初始化规则投票");
-         this.initRuleVoting();
+         this.voteManager.initRuleVoting();
          
          // 启动倒计时
          this.plugin.getLogger().info("[调试] 启动倒计时");
@@ -1276,9 +1147,15 @@ public class GameManager {
    private void startAutoStartCountdown() {
       World world = this.getGameWorld();
       if (world == null) return;
-      
+
+      // 如果已经有正在运行的倒计时任务，先取消它
+      if (this.autoStartTask != null) {
+         this.autoStartTask.cancel();
+         this.autoStartTask = null;
+      }
+
       Location centerLoc = world.getWorldBorder().getCenter();
-      
+
       this.autoStartTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, centerLoc, new java.util.function.Consumer<ScheduledTask>() {
          @Override
          public void accept(ScheduledTask task) {
@@ -1308,8 +1185,10 @@ public class GameManager {
             
             // 倒计时剩余10秒时锁定投票、选择规则和展示地图
             if (GameManager.this.autoStartCountdown == 10) {
-               GameManager.this.lockVotingAndSelectRule();
-               GameManager.this.selectAndAnnounceMap();
+               GameManager.this.voteManager.lockVotingAndSelectRule(GameManager.this.ruleSystem);
+               GameManager.this.selectedMap = GameManager.this.voteManager.selectAndAnnounceMap();
+               GameManager.this.currentMapType = GameManager.this.selectedMap;
+               GameManager.this.mapSelected = true;
             }
             
             // 倒计时结束，开始游戏
@@ -1323,212 +1202,32 @@ public class GameManager {
    }
    
    /**
-    * 初始化规则投票
+    * 获取选中的地图
     */
-   public void initRuleVoting() {
-      this.votingRules.clear();
-      this.playerVotes.clear();
-      this.votingLocked = false;
-      this.selectedRule = RuleType.NONE;
-      
-      // 获取所有可用规则（除了NONE）
-      List<RuleType> allRules = new ArrayList<>();
-      for (RuleType rule : RuleType.values()) {
-         if (rule != RuleType.NONE) {
-            allRules.add(rule);
-         }
-      }
-      
-      // 40%概率将"无规则"作为第一个选项
-      if (Math.random() < 0.4) {
-         this.votingRules.add(RuleType.NONE);
-         // 再从其他规则中随机选择2个
-         Collections.shuffle(allRules);
-         int count = Math.min(2, allRules.size());
-         for (int i = 0; i < count; i++) {
-            this.votingRules.add(allRules.get(i));
-         }
-      } else {
-         // 随机选择3个规则（不包含NONE）
-         Collections.shuffle(allRules);
-         int count = Math.min(3, allRules.size());
-         for (int i = 0; i < count; i++) {
-            this.votingRules.add(allRules.get(i));
-         }
-      }
-      
-      // 广播投票信息
-      this.broadcastMessage("");
-      this.broadcastMessage("§6§l═══════════════════════════");
-      this.broadcastMessage("§e§l        规则投票");
-      this.broadcastMessage("");
-      for (int i = 0; i < this.votingRules.size(); i++) {
-         RuleType rule = this.votingRules.get(i);
-         this.broadcastMessage("§" + rule.getColor() + "§l[" + (i + 1) + "] " + rule.getName());
-         this.broadcastMessage("§7" + rule.getDescription());
-         this.broadcastMessage("");
-      }
-      this.broadcastMessage("§e使用 §f/vote <编号> §e进行规则投票");
-      this.broadcastMessage("§6§l═══════════════════════════");
-   }
-   
-   /**
-    * 玩家投票
-    */
-   public void playerVoteRule(Player player, int voteIndex) {
-      // 检查玩家是否在游戏中
-      PlayerData data = this.playerDataMap.get(player.getUniqueId());
-      if (data == null || (data.getState() != PlayerState.READY && data.getState() != PlayerState.LOBBY)) {
-         player.sendMessage("§c只有已加入游戏的玩家才能投票！");
-         return;
-      }
-
-      if (this.votingLocked) {
-         player.sendMessage("§c投票已锁定，无法投票！");
-         return;
-      }
-
-      if (voteIndex < 1 || voteIndex > this.votingRules.size()) {
-         player.sendMessage("§c无效的投票编号！");
-         return;
-      }
-
-      RuleType votedRule = this.votingRules.get(voteIndex - 1);
-      this.playerVotes.put(player.getUniqueId(), votedRule);
-      player.sendMessage("§a你已投票给 §r§l" + votedRule.getName());
-   }
-
-   /**
-    * 检查是否正在进行投票
-    */
-   public boolean isVotingActive() {
-      return !this.votingRules.isEmpty() && !this.votingLocked;
-   }
-
-   /**
-    * 获取投票选项中的规则
-    */
-   public RuleType getVotingRule(int index) {
-      if (index < 0 || index >= this.votingRules.size()) {
-         return null;
-      }
-      return this.votingRules.get(index);
-   }
-
-   /**
-    * 执行投票（供 VoteCommand 使用）
-    */
-   public boolean castVote(Player player, RuleType rule) {
-      // 检查玩家是否在游戏中
-      PlayerData data = this.playerDataMap.get(player.getUniqueId());
-      if (data == null || (data.getState() != PlayerState.READY && data.getState() != PlayerState.LOBBY)) {
-         return false;
-      }
-
-      if (this.votingLocked) {
-         return false;
-      }
-
-      // 检查该规则是否在投票选项中
-      if (!this.votingRules.contains(rule)) {
-         return false;
-      }
-
-      // 检查玩家是否已经投过票
-      if (this.playerVotes.containsKey(player.getUniqueId())) {
-         return false;
-      }
-
-      this.playerVotes.put(player.getUniqueId(), rule);
-      return true;
-   }
-   
-   /**
-    * 锁定投票并选择规则
-    */
-   private void lockVotingAndSelectRule() {
-      this.votingLocked = true;
-      
-      // 统计票数
-      Map<RuleType, Integer> voteCount = new HashMap<>();
-      for (RuleType rule : this.votingRules) {
-         voteCount.put(rule, 0);
-      }
-      
-      for (RuleType vote : this.playerVotes.values()) {
-         voteCount.put(vote, voteCount.getOrDefault(vote, 0) + 1);
-      }
-      
-      // 找出票数最多的规则
-      int maxVotes = -1;
-      List<RuleType> topRules = new ArrayList<>();
-      
-      for (Map.Entry<RuleType, Integer> entry : voteCount.entrySet()) {
-         if (entry.getValue() > maxVotes) {
-            maxVotes = entry.getValue();
-            topRules.clear();
-            topRules.add(entry.getKey());
-         } else if (entry.getValue() == maxVotes) {
-            topRules.add(entry.getKey());
-         }
-      }
-      
-      // 如果有多个最高票，随机选择一个
-      if (topRules.isEmpty() || maxVotes == 0) {
-         // 无人投票，随机选择
-         this.selectedRule = this.votingRules.get((int) (Math.random() * this.votingRules.size()));
-         this.broadcastMessage("§6§l[幸运之柱] §e无人投票，随机选择规则: §r§l" + this.selectedRule.getName());
-      } else {
-         this.selectedRule = topRules.get((int) (Math.random() * topRules.size()));
-         this.broadcastMessage("§6§l[幸运之柱] §e投票结束！本局规则: §r§l" + this.selectedRule.getName());
-      }
-      
-      // 设置规则
-      this.ruleSystem.setRule(this.selectedRule);
-   }
-   
-   /**
-     * 获取当前投票规则列表
-     */
-    public List<RuleType> getVotingRules() {
-       return new ArrayList<>(this.votingRules);
-    }
-    
-    /**
-     * 随机选择并公告地图
-     */
-    private void selectAndAnnounceMap() {
-       // 随机选择地图
-       MapType[] allMaps = MapType.values();
-       this.selectedMap = allMaps[(int) (Math.random() * allMaps.length)];
-       this.mapSelected = true;
-       
-       // 设置当前地图类型
-       this.currentMapType = this.selectedMap;
-       
-       // 公告地图信息
-       this.broadcastMessage("");
-       this.broadcastMessage("§6§l═══════════════════════════");
-       this.broadcastMessage("§e§l        本局地图");
-       this.broadcastMessage("");
-       this.broadcastMessage("§6§l" + this.selectedMap.getDisplayName());
-       this.broadcastMessage("§7" + this.selectedMap.getDescription());
-       this.broadcastMessage("§6§l═══════════════════════════");
-    }
-    
-    /**
-     * 获取选中的地图
-     */
     public MapType getSelectedMap() {
        return this.selectedMap;
     }
     
     /**
-     * 获取自动开始倒计时
-     */
-    public int getAutoStartCountdown() {
-       return this.autoStartCountdown;
-    }
+    * 检查是否正在进行投票
+    */
+   public boolean isVotingActive() {
+      return this.voteManager.isVotingActive();
+   }
+
+   /**
+    * 获取当前投票规则列表
+    */
+   public List<RuleType> getVotingRules() {
+      return this.voteManager.getVotingRules();
+   }
+
+   /**
+    * 获取自动开始倒计时
+    */
+   public int getAutoStartCountdown() {
+      return this.autoStartCountdown;
+   }
 
     /**
      * 检查自动开始是否正在进行
@@ -1625,9 +1324,13 @@ public class GameManager {
          this.alivePlayers.remove(uuid);
       }
 
-      // 同步玩家统计信息到数据库
-      this.plugin.getStatisticsSystem().syncPlayerToDatabase(uuid);
-      this.plugin.getLogger().info("玩家 " + player.getName() + " 出局，转为观察者，统计信息已同步到数据库");
+      // 异步同步玩家统计信息到数据库，避免阻塞主线程
+      final UUID playerUuid = uuid;
+      final String playerName = player.getName();
+      Bukkit.getAsyncScheduler().runNow(this.plugin, task -> {
+         this.plugin.getStatisticsSystem().syncPlayerToDatabase(playerUuid);
+         this.plugin.getLogger().info("玩家 " + playerName + " 出局，统计信息已异步同步到数据库");
+      });
 
       // 注意：游戏模式设置和传送在PlayerListener.onPlayerRespawn中处理
       // 检查是否只剩一个存活的玩家
@@ -1640,6 +1343,67 @@ public class GameManager {
       for (PlayerData data : this.playerDataMap.values()) {
          data.reset();
       }
+   }
+   
+   /**
+    * 清理玩家所有属性修改
+    * 用于游戏开始时清除所有玩家的残留属性效果
+    */
+   private void cleanupPlayerAttributes(Player player) {
+      // 清理体型修改
+      org.bukkit.attribute.AttributeInstance scaleAttr = player.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+      if (scaleAttr != null) {
+         scaleAttr.getModifiers().forEach(scaleAttr::removeModifier);
+      }
+      
+      // 清理速度修改
+      org.bukkit.attribute.AttributeInstance speedAttr = player.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
+      if (speedAttr != null) {
+         speedAttr.getModifiers().forEach(speedAttr::removeModifier);
+      }
+      
+      // 清理攻击伤害修改
+      org.bukkit.attribute.AttributeInstance attackDamage = player.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE);
+      if (attackDamage != null) {
+         attackDamage.getModifiers().forEach(attackDamage::removeModifier);
+      }
+      
+      // 清理跳跃强度修改
+      org.bukkit.attribute.AttributeInstance jumpAttr = player.getAttribute(org.bukkit.attribute.Attribute.JUMP_STRENGTH);
+      if (jumpAttr != null) {
+         jumpAttr.getModifiers().forEach(jumpAttr::removeModifier);
+      }
+      
+      // 清理方块交互距离修改
+      try {
+         org.bukkit.attribute.Attribute blockRangeAttr = org.bukkit.attribute.Attribute.valueOf("PLAYER_BLOCK_INTERACTION_RANGE");
+         org.bukkit.attribute.AttributeInstance blockRange = player.getAttribute(blockRangeAttr);
+         if (blockRange != null) {
+            blockRange.getModifiers().forEach(blockRange::removeModifier);
+         }
+      } catch (IllegalArgumentException e) {
+         // 属性不存在，忽略
+      }
+      
+      // 清理实体交互距离修改
+      try {
+         org.bukkit.attribute.Attribute entityRangeAttr = org.bukkit.attribute.Attribute.valueOf("PLAYER_ENTITY_INTERACTION_RANGE");
+         org.bukkit.attribute.AttributeInstance entityRange = player.getAttribute(entityRangeAttr);
+         if (entityRange != null) {
+            entityRange.getModifiers().forEach(entityRange::removeModifier);
+         }
+      } catch (IllegalArgumentException e) {
+         // 属性不存在，忽略
+      }
+      
+      // 移除所有药水效果
+      player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+      
+      // 恢复飞行状态
+      player.setAllowFlight(false);
+      player.setFlying(false);
+      
+      this.plugin.getLogger().info("[游戏开始] 玩家 " + player.getName() + " 的属性已清理");
    }
 
    private void assignPlayerNumbers() {
@@ -1655,6 +1419,38 @@ public class GameManager {
 
    public void broadcastMessage(String message) {
       Bukkit.broadcastMessage(message);
+   }
+   
+   /**
+    * 广播游戏开始信息
+    * 向所有参与游戏的玩家发送地图名称、人数等信息
+    * 直接向每个玩家发送，避免Folia广播问题
+    */
+   private void broadcastGameStartInfo(int totalPlayers) {
+      String mapName = this.currentMapType != null ? this.currentMapType.getDisplayName() : "未知地图";
+      String[] messages = {
+         "",
+         "§6§l═══════════════════════════",
+         "§e§l        游戏开始！",
+         "",
+         "§6本局地图: §f" + mapName,
+         "§e参与人数: §f" + totalPlayers + " §e人",
+         "§7准备倒计时: §c" + this.beginTimer + " §7秒",
+         "",
+         "§6§l═══════════════════════════",
+         ""
+      };
+      
+      // 直接向每个在线玩家发送消息（包括参与游戏的玩家和观察者）
+      for (Player player : Bukkit.getOnlinePlayers()) {
+         if (player != null && player.isOnline()) {
+            for (String msg : messages) {
+               player.sendMessage(msg);
+            }
+         }
+      }
+      
+      this.plugin.getLogger().info("[调试] 已广播游戏开始信息 - 地图: " + mapName + ", 人数: " + totalPlayers);
    }
 
    public void forceJoinAllPlayers() {
@@ -1750,7 +1546,10 @@ public class GameManager {
    }
 
    public Location getLobbyLocation() {
-      return new Location(this.getGameWorld(), 100.0, 4.0, 100.0);
+      double x = this.plugin.getConfig().getDouble("lobby.x", 100.0);
+      double y = this.plugin.getConfig().getDouble("lobby.y", 4.0);
+      double z = this.plugin.getConfig().getDouble("lobby.z", 100.0);
+      return new Location(this.getGameWorld(), x, y, z);
    }
 
    public void shutdown() {
@@ -1977,7 +1776,7 @@ public class GameManager {
          Player player = Bukkit.getPlayer(uuid);
          if (player != null && player.isOnline() && index < template.getPillars().size()) {
             MapTemplate.PillarConfig pillar = template.getPillars().get(index);
-            Location teleportLoc = pillar.getTeleportLocation(this.mapRegion.getCenter());
+            Location teleportLoc = pillar.getTeleportLocation(this.mapRegion.getCenter(), template.getPillarHeight());
             player.teleportAsync(teleportLoc);
             index++;
          }
@@ -1990,14 +1789,6 @@ public class GameManager {
 
    public void setLookAtMeTarget(Player lookAtMeTarget) {
       this.lookAtMeTarget = lookAtMeTarget;
-   }
-
-   public boolean isKeyInversionActive() {
-      return this.keyInversionActive;
-   }
-
-   public void setKeyInversionActive(boolean keyInversionActive) {
-      this.keyInversionActive = keyInversionActive;
    }
 
    // ==================== Made in Heaven 时间加速方法 ====================
@@ -2015,23 +1806,27 @@ public class GameManager {
     */
    public void startTimeAcceleration() {
       if (this.timeAccelerationActive) return;
-      
+
       this.timeAccelerationActive = true;
       World world = this.getGameWorld();
       if (world == null) return;
-      
+
       this.debugLogger.debug("[Made in Heaven] 时间加速启动！");
-      
+
       // 启动快速昼夜交替（6秒一个周期 = 3秒白天 + 3秒黑夜）
-      this.dayNightCycleTask = Bukkit.getRegionScheduler().runAtFixedRate(this.plugin, world.getSpawnLocation(), 
+      // 注意：在Folia中，修改世界时间需要在全局调度器上执行
+      this.dayNightCycleTask = Bukkit.getGlobalRegionScheduler().runAtFixedRate(this.plugin,
          (task) -> {
             if (!this.timeAccelerationActive || this.gameStatus != GameStatus.PLAYING) {
                task.cancel();
                return;
             }
-            // 快速推进时间
-            long currentTime = world.getTime();
-            world.setTime((currentTime + 200) % 24000); // 快速推进时间
+            // 快速推进时间 - 在全局调度器上执行
+            World gameWorld = this.getGameWorld();
+            if (gameWorld != null) {
+               long currentTime = gameWorld.getTime();
+               gameWorld.setTime((currentTime + 200) % 24000); // 快速推进时间
+            }
          }, 1L, 1L);
    }
 
@@ -2113,7 +1908,12 @@ public class GameManager {
    }
 
    public int getBorderTimer() {
-      return this.borderShrinkCountdown;
+      // 如果游戏正在进行，从BorderManager获取动态倒计时
+      if (this.gameStatus == GameStatus.PLAYING && this.borderManager != null) {
+         return this.borderManager.getBorderShrinkCountdown();
+      }
+      // 否则返回配置中的静态值
+      return this.borderTimer;
    }
    
    public com.newpillar.cache.PlayerCache getPlayerCache() {

@@ -39,7 +39,8 @@ public class VanillaItemManager {
         TNT("tnt", "TNT", Material.TNT),
         FIRE_CHARGE("fire_charge", "火球", Material.FIRE_CHARGE),
         END_CRYSTAL("end_crystal", "末地水晶", Material.END_CRYSTAL),
-        ENCHANTED_BOOK("enchanted_book", "附魔书", Material.ENCHANTED_BOOK);
+        ENCHANTED_BOOK("enchanted_book", "附魔书", Material.ENCHANTED_BOOK),
+        DRAGON_EGG("dragon_egg", "龙蛋", Material.DRAGON_EGG);
 
         private final String id;
         private final String displayName;

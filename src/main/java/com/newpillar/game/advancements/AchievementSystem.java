@@ -36,24 +36,13 @@ public class AchievementSystem {
             
             // 注：音效由原版进度系统控制，这里不再播放
             
-            // 发送成就消息
-            String frameColor = switch (achievement.getFrame()) {
-                case "challenge" -> "§6";
-                case "goal" -> "§d";
-                default -> "§a";
-            };
-            
             // 保存到数据库
             saveAchievementToDatabase(uuid, achievement);
             plugin.getLogger().info("[调试] 数据库保存完成");
             
             // 授予原生进度（会自动显示游戏内进度提示）
             grantAdvancement(player, achievement);
-            plugin.getLogger().info("[调试] 原生进度授予完成");
-            
-            // 发送成就解锁消息给玩家
-            player.sendMessage("§6§l[成就] §r" + frameColor + achievement.getTitle() + " §7- " + achievement.getDescription());
-            plugin.getLogger().info("[调试] 成就授予完成: " + achievement.getTitle());
+            plugin.getLogger().info("[调试] 原生进度授予完成: " + achievement.getTitle());
         } else {
             plugin.getLogger().info("[调试] 玩家已拥有该成就，跳过授予");
         }
@@ -80,7 +69,7 @@ public class AchievementSystem {
     }
     
     /**
-     * 保存成就到数据库
+     * 保存成就到数据库（异步执行）
      */
     private void saveAchievementToDatabase(UUID uuid, AchievementType achievement) {
         if (plugin.getDatabaseManager() != null) {
@@ -90,7 +79,10 @@ public class AchievementSystem {
             } else {
                 key = plugin.getAdvancementManager().convertToKey(achievement);
             }
-            plugin.getDatabaseManager().saveAchievement(uuid, key);
+            // 异步保存到数据库，避免阻塞主线程
+            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                plugin.getDatabaseManager().saveAchievement(uuid, key);
+            });
         }
     }
     
@@ -126,37 +118,42 @@ public class AchievementSystem {
     
     public void grantItemAchievement(Player player, String itemId) {
         AchievementType achievement = switch (itemId.toLowerCase()) {
-            case "bruce" -> AchievementType.BRUCE;
-            case "blue_screen" -> AchievementType.BLUE_SCREEN;
-            case "fly_mace" -> AchievementType.FLY_MACE;
-            case "invisible_scarf" -> AchievementType.INVISIBLE_SCARF;
-            case "big_flame_rod" -> AchievementType.BIG_FLAME_ROD;
+            // 武器类
             case "meow_axe" -> AchievementType.MEOW_AXE;
-            case "pixie" -> AchievementType.PIXIE;
+            case "fly_mace" -> AchievementType.FLY_MACE;
+            case "knockback_stick" -> AchievementType.KNOCKBACK_STICK;
+            case "godly_pickaxe" -> AchievementType.GODLY_PICKAXE;
+            case "spear" -> AchievementType.SPEAR;
+            case "special_bow" -> AchievementType.SPECIAL_BOW;
+            case "special_crossbow" -> AchievementType.SPECIAL_CROSSBOW;
+            case "life_steal_sword" -> AchievementType.LIFE_STEAL_SWORD;
+            case "poison_dagger" -> AchievementType.POISON_DAGGER;
+            // 装备类
+            case "invisible_sand" -> AchievementType.INVISIBLE_SAND;
             case "rocket_boots" -> AchievementType.ROCKET_BOOTS;
             case "running_shoes" -> AchievementType.RUNNING_SHOES;
-            case "witch_apple" -> AchievementType.WITCH_APPLE;
-            case "yanpai" -> AchievementType.YANPAI;
+            case "gravity_boots" -> AchievementType.GRAVITY_BOOTS;
+            case "shield_generator" -> AchievementType.SHIELD_GENERATOR;
+            // 道具类
+            case "bruce" -> AchievementType.BRUCE;
+            case "blue_screen" -> AchievementType.BLUE_SCREEN;
+            case "big_flame_rod" -> AchievementType.BIG_FLAME_ROD;
+            case "pixie" -> AchievementType.PIXIE;
             case "clock" -> AchievementType.CLOCK;
             case "hongbao" -> AchievementType.HONGBAO;
             case "hypnosis_app" -> AchievementType.HYPNOSIS_APP;
             case "bones_without_chicken_feet" -> AchievementType.BONES_WITHOUT_CHICKEN_FEET;
-            case "knockback_stick" -> AchievementType.KNOCKBACK_STICK;
-            case "godly_pickaxe" -> AchievementType.GODLY_PICKAXE;
-            case "spawner" -> AchievementType.SPANWER;
-            case "nether_star" -> AchievementType.NETHER_STAR_USE;
-            case "dragon_breath" -> AchievementType.DRAGON_BREATH_USE;
-            case "echo_shard" -> AchievementType.ECHO_SHARD_USE;
-            case "fire_charge" -> AchievementType.FIRE_CHARGE_USE;
-            case "tnt" -> AchievementType.TNT_USE;
-            case "bow" -> AchievementType.BOW_USE;
-            case "crossbow" -> AchievementType.CROSSBOW_USE;
-            case "end_crystal" -> AchievementType.END_CRYSTAL_USE;
-            case "feather" -> AchievementType.FEATHER_USE;
-            case "enchanted_book" -> AchievementType.ENCHANTED_BOOK_USE;
+            // 消耗品类
+            case "witch_apple" -> AchievementType.WITCH_APPLE;
+            case "yanpai" -> AchievementType.YANPAI;
+            case "spawner" -> AchievementType.SPAWNER;
+            // 特殊武器
+            case "excalibur", "ex_curry_stick" -> AchievementType.EXCALIBUR;
+            // 俄罗斯轮盘
+            case "russian_roulette" -> AchievementType.RUSSIAN_ROULETTE;
             default -> null;
         };
-        
+
         if (achievement != null) {
             grantAchievement(player, achievement);
         }
@@ -296,7 +293,16 @@ public class AchievementSystem {
             case "bones_without_chicken_feet" -> AchievementType.BONES_WITHOUT_CHICKEN_FEET;
             case "knockback_stick" -> AchievementType.KNOCKBACK_STICK;
             case "godly_pickaxe" -> AchievementType.GODLY_PICKAXE;
-            case "spawner" -> AchievementType.SPANWER;
+            case "spear" -> AchievementType.SPEAR;
+            case "life_steal_sword" -> AchievementType.LIFE_STEAL_SWORD;
+            case "poison_dagger" -> AchievementType.POISON_DAGGER;
+            case "invisible_sand" -> AchievementType.INVISIBLE_SAND;
+            case "gravity_boots" -> AchievementType.GRAVITY_BOOTS;
+            case "shield_generator" -> AchievementType.SHIELD_GENERATOR;
+            case "excalibur" -> AchievementType.EXCALIBUR;
+            case "special_bow" -> AchievementType.SPECIAL_BOW;
+            case "special_crossbow" -> AchievementType.SPECIAL_CROSSBOW;
+            case "spawner" -> AchievementType.SPAWNER;
             case "nether_star_use" -> AchievementType.NETHER_STAR_USE;
             case "dragon_breath_use" -> AchievementType.DRAGON_BREATH_USE;
             case "echo_shard_use" -> AchievementType.ECHO_SHARD_USE;

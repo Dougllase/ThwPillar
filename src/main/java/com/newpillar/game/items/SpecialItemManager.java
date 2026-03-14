@@ -64,7 +64,8 @@ public class SpecialItemManager {
         HYPNOSIS_APP("hypnosis_app", "催眠 app", Material.IRON_INGOT, "特殊类"),
         EX_CURRY_STICK("ex_curry_stick", "『EX咖喱棒』", Material.DIAMOND_SWORD, "特殊类"),
         SPAWNER("spawner", "刷怪笼", Material.SPAWNER, "特殊类"),
-        THE_WORLD("the_world", "砸瓦鲁多", Material.BELL, "特殊类");
+        THE_WORLD("the_world", "砸瓦鲁多", Material.BELL, "特殊类"),
+        RUSSIAN_ROULETTE("russian_roulette", "俄罗斯轮盘枪", Material.IRON_HORSE_ARMOR, "特殊类");
 
         private final String id;
         private final String displayName;
@@ -105,21 +106,26 @@ public class SpecialItemManager {
                     meta.addEnchant(Enchantment.KNOCKBACK, 4, true);
                 }
                 case SPEAR -> {
-                    // 长♂矛 - 锋利5，主手+3实体交互距离，显示附魔和属性
+                    // 长♂矛 - 锋利5，主手/副手+3实体交互距离，显示附魔和属性
                     // 添加锋利5附魔
                     meta.addEnchant(Enchantment.SHARPNESS, 5, true);
                     // 添加原版突进附魔 (LUNGE)
                     meta.addEnchant(Enchantment.LUNGE, 3, true);
                     // 主手+3实体交互距离
                     meta.addAttributeModifier(Attribute.ENTITY_INTERACTION_RANGE,
-                            new AttributeModifier(UUID.randomUUID(), "spear_range", 3.0,
+                            new AttributeModifier(UUID.randomUUID(), "spear_range_main", 3.0,
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+                    // 副手+3实体交互距离
+                    meta.addAttributeModifier(Attribute.ENTITY_INTERACTION_RANGE,
+                            new AttributeModifier(UUID.randomUUID(), "spear_range_off", 3.0,
+                                    AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.OFFHAND));
                     // 不添加HIDE_ENCHANTS和HIDE_ATTRIBUTES，让附魔和属性显示出来
                 }
                 case BONES_WITHOUT_CHICKEN_FEET -> {
                     // 有骨无鸡爪
                     lore.add(Component.text("食用回复").color(TextColor.color(0xAAAAAA))
-                            .append(Component.text("❤x1").color(TextColor.color(0xFF5555))));
+                            .append(Component.text("❤x3").color(TextColor.color(0xFF5555))));
+                    lore.add(Component.text("并恢复少量饥饿值").color(TextColor.color(0xAAAAAA)));
                 }
                 case IRON_SWORD -> {
                     // 铁剑 - 1.7.10风格
@@ -237,8 +243,6 @@ public class SpecialItemManager {
                 }
                 case BLUE_SCREEN -> {
                     // 蓝屏 - 材质蓝色染料
-                    lore.add(Component.text("蓝屏！").color(TextColor.color(0x5555FF)).decorate(TextDecoration.BOLD));
-                    lore.add(Component.empty());
                     lore.add(Component.text("右键能够让某个你身边的人的电脑蓝屏哦～（并非真的）").color(TextColor.color(0xAAAAAA)));
                 }
                 case HONGBAO -> {
@@ -253,6 +257,14 @@ public class SpecialItemManager {
                 }
                 case EX_CURRY_STICK -> {
                     // 『EX咖喱棒』 - 材质钻石剑
+                    lore.add(Component.empty());
+                    lore.add(Component.text("那把剑正是从过去未来消逝在战场上的所有士兵，").color(TextColor.color(0xFFD700)));
+                    lore.add(Component.text("在临终之际怀抱的虽悲伤但尊贵的梦想，").color(TextColor.color(0xFFD700)));
+                    lore.add(Component.text("那样的意志值得夸耀，那样的信义必须贯彻，").color(TextColor.color(0xFFD700)));
+                    lore.add(Component.text("常胜之王高声的念出手上奇迹的真名，那正是——").color(TextColor.color(0xFFD700)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("誓约胜利之剑").color(TextColor.color(0xFF5555)).decorate(TextDecoration.BOLD));
+                    lore.add(Component.empty());
                     lore.add(Component.text("右键召唤大光柱").color(TextColor.color(0xAAAAAA)));
                     lore.add(Component.text("光柱倒下造成伤害并击退").color(TextColor.color(0x55FFFF)));
                     lore.add(Component.empty());
@@ -265,16 +277,16 @@ public class SpecialItemManager {
                     // 刷怪笼
                 }
                 case SPECIAL_BOW -> {
-                    // 神弓 - 发射爆炸箭，显示真实附魔
+                    // 神弓 - 顶配附魔：力量5、耐久3、冲击2（破甲5通过addUnsafeEnchantment在setItemMeta后添加）
                     meta.addEnchant(Enchantment.POWER, 5, true);
-                    meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    meta.addEnchant(Enchantment.UNBREAKING, 3, true); // 耐久3
+                    meta.addEnchant(Enchantment.PUNCH, 2, true); // 冲击2
                     // 不隐藏附魔，让真实附魔显示
                 }
                 case SPECIAL_CROSSBOW -> {
-                    // 神弩 - 多重射击，显示真实附魔
-                    meta.addEnchant(Enchantment.MULTISHOT, 1, true);
-                    meta.addEnchant(Enchantment.QUICK_CHARGE, 3, true);
-                    meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+                    // 神弩 - 顶配附魔：快速装填3、耐久3（多重射击3和破甲5通过addUnsafeEnchantment在setItemMeta后添加）
+                    meta.addEnchant(Enchantment.QUICK_CHARGE, 3, true); // 快速装填3
+                    meta.addEnchant(Enchantment.UNBREAKING, 3, true); // 耐久3
                     // 不隐藏附魔，让真实附魔显示
                 }
                 case THE_WORLD -> {
@@ -285,15 +297,19 @@ public class SpecialItemManager {
                     lore.add(Component.text("右键冻结周围玩家9秒").color(TextColor.color(0x55FFFF)));
                 }
                 case GRAVITY_BOOTS -> {
-                    // 重力靴 - 下界合金靴，免疫击退，增加下落速度
+                    // 重力靴 - 下界合金靴，提升摔落伤害、增加重力、击退抗性
                     lore.add(Component.text("风雨不动安如山").color(TextColor.color(0x55FFFF)));
-                    // 击退抗性
+                    // 击退抗性10（1000% = 10.0）
                     meta.addAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,
-                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_knockback", 1.0,
+                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_knockback", 10.0,
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.FEET));
-                    // 增加重力（通过移动速度减少来模拟）
-                    meta.addAttributeModifier(Attribute.MOVEMENT_SPEED,
-                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_speed", -0.1,
+                    // 增加重力0.01（通过SAFE_FALL_DISTANCE减少来模拟摔落伤害增加）
+                    meta.addAttributeModifier(Attribute.SAFE_FALL_DISTANCE,
+                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_fall", -1.25,
+                                    AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.FEET));
+                    // 增加重力（通过SCALE属性）
+                    meta.addAttributeModifier(Attribute.SCALE,
+                            new AttributeModifier(UUID.randomUUID(), "gravity_boots_gravity", 0.01,
                                     AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.FEET));
                 }
                 case LIFE_STEAL_SWORD -> {
@@ -307,8 +323,9 @@ public class SpecialItemManager {
                     lore.add(Component.text("安如磐石").color(TextColor.color(0x55FFFF)));
                     lore.add(Component.empty());
                     lore.add(Component.text("冷却时间：1分钟").color(TextColor.color(0xAAAAAA)));
-                    lore.add(Component.text("右键生成5秒可吸收8点生命值的护盾").color(TextColor.color(0x55FFFF)));
-                    lore.add(Component.text("并小幅提升抗击退能力").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("右键生成5秒护盾：").color(TextColor.color(0x55FFFF)));
+                    lore.add(Component.text("• 吸收8点生命值").color(TextColor.color(0x55FFFF)));
+                    lore.add(Component.text("• 免疫击退").color(TextColor.color(0x55FFFF)));
                 }
                 case POISON_DAGGER -> {
                     // 剧毒匕首 - 铁剑，攻击附加3秒中毒效果
@@ -316,6 +333,27 @@ public class SpecialItemManager {
                     lore.add(Component.empty());
                     lore.add(Component.text("攻击附加3秒中毒效果").color(TextColor.color(0xAAAAAA)));
                 }
+                case RUSSIAN_ROULETTE -> {
+                    // 俄罗斯轮盘枪 - 铁马铠
+                    lore.add(Component.text("试试你的运气").color(TextColor.color(0xAA0000)).decorate(TextDecoration.BOLD));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("右键打开选择界面").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.text("选择子弹数量后开枪").color(TextColor.color(0xAAAAAA)));
+                    lore.add(Component.empty());
+                    lore.add(Component.text("1-6颗子弹，奖励递增").color(TextColor.color(0x55FF55)));
+                    lore.add(Component.text("6颗子弹可获得特殊成就").color(TextColor.color(0xAA00AA)));
+                }
+            }
+
+            // 神弓特殊处理：在setItemMeta之前添加unsafe附魔（破甲5）
+            if (type == SpecialItemType.SPECIAL_BOW) {
+                meta.addEnchant(Enchantment.PIERCING, 5, true); // 破甲5（超过原版限制）
+            }
+
+            // 神弩特殊处理：在setItemMeta之前添加unsafe附魔（多重射击3、破甲5）
+            if (type == SpecialItemType.SPECIAL_CROSSBOW) {
+                meta.addEnchant(Enchantment.MULTISHOT, 3, true); // 多重射击3（超过原版限制）
+                meta.addEnchant(Enchantment.PIERCING, 5, true); // 破甲5
             }
 
             meta.lore(lore);
@@ -371,6 +409,21 @@ public class SpecialItemManager {
 
         for (SpecialItemType type : SpecialItemType.values()) {
             if (type.getId().equals(id)) {
+                return type;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 通过物品ID获取特殊物品类型
+     * @param id 物品ID（如 "knockback_stick"）
+     * @return 对应的 SpecialItemType，如果不存在则返回 null
+     */
+    public SpecialItemType getSpecialItemTypeById(String id) {
+        if (id == null) return null;
+        for (SpecialItemType type : SpecialItemType.values()) {
+            if (type.getId().equalsIgnoreCase(id)) {
                 return type;
             }
         }

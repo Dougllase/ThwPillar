@@ -10,7 +10,12 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.Random;
 
 public class TemplateMapGenerator {
    private final NewPillar plugin;
@@ -41,19 +46,107 @@ public class TemplateMapGenerator {
 
       // 生成柱子
       for (MapTemplate.PillarConfig pillar : template.getPillars()) {
-         this.generatePillar(world, center, pillar, template.getPillarMaterial());
+         this.generatePillar(world, center, template, pillar, template.getPillarMaterial());
       }
 
       // 放置笼子（必须成功）
       for (MapTemplate.PillarConfig pillar : template.getPillars()) {
-         boolean cageSuccess = this.placeCage(world, center, pillar, template.getCageMaterial());
+         boolean cageSuccess = this.placeCage(world, center, template, pillar, template.getCageMaterial());
          if (!cageSuccess) {
             this.plugin.getLogger().severe("地图生成失败：无法放置笼子结构");
             return;
          }
       }
 
+      // 月球地图：在底座中心放置战利品箱
+      if (template.getMapType() == MapType.MOON) {
+         this.placeMoonLootChest(center);
+      }
+
       this.plugin.getLogger().info("地图生成完成！");
+   }
+
+   /**
+    * 放置月球地图战利品箱
+    * 与数据包 moon.json 一致：鞘翅、烟花火箭、金苹果/苹果、末地城宝藏
+    * 位置：(-1, 5, -1)
+    */
+   private void placeMoonLootChest(Location center) {
+      World world = center.getWorld();
+      if (world == null) return;
+
+      // 箱子位置：(-1, 5, -1)
+      Location chestLocation = center.clone().add(-1, 5, -1);
+
+      this.plugin.getLogger().info("[月球地图] 在位置 " + chestLocation + " 放置战利品箱");
+
+      Bukkit.getRegionScheduler().execute(this.plugin, chestLocation, () -> {
+         Block chestBlock = world.getBlockAt(chestLocation);
+         chestBlock.setType(Material.CHEST);
+
+         if (chestBlock.getState() instanceof Chest chest) {
+            Inventory inv = chest.getInventory();
+            Random random = new Random();
+
+            // 获取随机空槽位列表
+            java.util.List<Integer> emptySlots = getRandomEmptySlots(inv, 27);
+            int slotIndex = 0;
+
+            // Pool 1: 鞘翅 (必定)
+            if (slotIndex < emptySlots.size()) {
+               inv.setItem(emptySlots.get(slotIndex++), new ItemStack(Material.ELYTRA));
+            }
+
+            // Pool 2: 烟花火箭 4-10个 (分散到多个格子)
+            int fireworkCount = 4 + random.nextInt(7); // 4-10
+            // 每格最多放3个，分散放置
+            while (fireworkCount > 0 && slotIndex < emptySlots.size()) {
+               int count = Math.min(3, fireworkCount);
+               inv.setItem(emptySlots.get(slotIndex++), new ItemStack(Material.FIREWORK_ROCKET, count));
+               fireworkCount -= count;
+            }
+
+            // Pool 3: 金苹果或普通苹果
+            if (slotIndex < emptySlots.size()) {
+               if (random.nextBoolean()) {
+                  inv.setItem(emptySlots.get(slotIndex++), new ItemStack(Material.GOLDEN_APPLE));
+               } else {
+                  int appleCount = 1 + random.nextInt(5); // 1-5
+                  inv.setItem(emptySlots.get(slotIndex++), new ItemStack(Material.APPLE, appleCount));
+               }
+            }
+
+            // Pool 4: 末地城宝藏战利品 (简化实现)
+            // 添加一些末地城常见物品
+            Material[] endCityLoot = {
+               Material.DIAMOND, Material.IRON_INGOT, Material.GOLD_INGOT,
+               Material.EMERALD, Material.SADDLE, Material.IRON_HORSE_ARMOR,
+               Material.GOLDEN_HORSE_ARMOR, Material.DIAMOND_HORSE_ARMOR
+            };
+            for (int i = 0; i < 3 && slotIndex < emptySlots.size(); i++) {
+               Material loot = endCityLoot[random.nextInt(endCityLoot.length)];
+               int count = 1 + random.nextInt(3);
+               inv.setItem(emptySlots.get(slotIndex++), new ItemStack(loot, count));
+            }
+
+            this.plugin.getLogger().info("[月球地图] 战利品箱已填充");
+         }
+      });
+   }
+
+   /**
+    * 获取随机的空槽位列表
+    * @param inv 箱子背包
+    * @param count 需要的槽位数量
+    * @return 随机排序的槽位列表
+    */
+   private java.util.List<Integer> getRandomEmptySlots(Inventory inv, int count) {
+      java.util.List<Integer> slots = new java.util.ArrayList<>();
+      for (int i = 0; i < inv.getSize() && slots.size() < count; i++) {
+         slots.add(i);
+      }
+      java.util.Collections.shuffle(slots, new Random());
+      return slots;
    }
 
    /**
@@ -110,13 +203,14 @@ public class TemplateMapGenerator {
     * 放置笼子
     * @return 是否成功放置
     */
-   private boolean placeCage(World world, Location center, MapTemplate.PillarConfig pillar, Material cageMaterial) {
+   private boolean placeCage(World world, Location center, MapTemplate template, MapTemplate.PillarConfig pillar, Material cageMaterial) {
       int cageX = center.getBlockX() + pillar.x - 1;
       int cageZ = center.getBlockZ() + pillar.z - 1;
-      int cageY = center.getBlockY() + 40;  // 柱子高度39 + 1 = 40
+      int pillarHeight = template.getPillarHeight();
+      int cageY = center.getBlockY() + pillarHeight + 1;  // 柱子高度 + 1 = 笼子位置
       Location cageLocation = new Location(world, (double)cageX, (double)cageY, (double)cageZ);
 
-      this.plugin.getLogger().fine("放置笼子: 柱子(" + pillar.x + "," + pillar.z + ") -> 笼子(" + cageX + "," + cageZ + ")");
+      this.plugin.getLogger().fine("放置笼子: 柱子(" + pillar.x + "," + pillar.z + ") -> 笼子(" + cageX + "," + cageZ + "), 高度: " + cageY);
 
       // 检查结构是否存在
       if (!this.structureTemplate.hasStructure("cage")) {
@@ -132,13 +226,14 @@ public class TemplateMapGenerator {
       return success;
    }
 
-   private void generatePillar(World world, Location center, MapTemplate.PillarConfig pillar, Material material) {
+   private void generatePillar(World world, Location center, MapTemplate template, MapTemplate.PillarConfig pillar, Material material) {
       Location base = pillar.getPillarBaseLocation(center);
       int x = base.getBlockX();
       int z = base.getBlockZ();
       int baseY = center.getBlockY();
+      int pillarHeight = template.getPillarHeight();
 
-      for (int y = 1; y <= 39; y++) {
+      for (int y = 1; y <= pillarHeight; y++) {
          int finalY = baseY + y;
          Location blockLoc = new Location(world, (double)x, (double)finalY, (double)z);
          Bukkit.getRegionScheduler().execute(this.plugin, blockLoc, () -> {
@@ -155,11 +250,12 @@ public class TemplateMapGenerator {
       }
 
       this.plugin.getLogger().info("打开所有笼子...");
+      int pillarHeight = template.getPillarHeight();
 
       for (MapTemplate.PillarConfig pillar : template.getPillars()) {
          int cageX = center.getBlockX() + pillar.x - 1;
          int cageZ = center.getBlockZ() + pillar.z - 1;
-         int cageY = center.getBlockY() + 40;  // 柱子高度39 + 1 = 40
+         int cageY = center.getBlockY() + pillarHeight + 1;  // 柱子高度 + 1 = 笼子位置
          Location cageLocation = new Location(world, (double)cageX, (double)cageY, (double)cageZ);
 
          // 尝试放置空笼子结构

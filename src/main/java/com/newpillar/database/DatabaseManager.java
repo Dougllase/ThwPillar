@@ -6,6 +6,8 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -53,12 +55,13 @@ public class DatabaseManager {
                     host, port, database));
             config.setUsername(username);
             config.setPassword(password);
-            config.setMaximumPoolSize(10);
-            config.setMinimumIdle(2);
+            config.setMaximumPoolSize(20);
+            config.setMinimumIdle(5);
             config.setConnectionTimeout(30000);
             config.setIdleTimeout(600000);
             config.setMaxLifetime(1800000);
             config.setConnectionTestQuery("SELECT 1");
+            config.setLeakDetectionThreshold(60000);
             
             dataSource = new HikariDataSource(config);
             
@@ -155,9 +158,7 @@ public class DatabaseManager {
      * 检查并添加单个列
      */
     private void checkAndAddColumn(String tableName, String columnName, String columnDefinition) {
-        Connection conn = null;
-        try {
-            conn = dataSource.getConnection();
+        try (Connection conn = dataSource.getConnection()) {
             String checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
                              "WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()";
 
@@ -177,14 +178,6 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "检查/添加列 '" + columnName + "' 失败: " + e.getMessage(), e);
-        } finally {
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.WARNING, "关闭连接失败: " + e.getMessage(), e);
-                }
-            }
         }
     }
 
@@ -203,18 +196,17 @@ public class DatabaseManager {
 
     // 保存玩家成就
     public void saveAchievement(UUID playerUuid, String achievementId) {
-        Connection conn = getConnection();
-        if (conn == null) {
-            plugin.getLogger().warning("无法保存成就到数据库：数据库连接为空");
-            return;
-        }
-        
         String sql = """
             INSERT IGNORE INTO player_achievements (player_uuid, achievement_id)
             VALUES (?, ?)
             """;
 
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            if (conn == null) {
+                plugin.getLogger().warning("无法保存成就到数据库：数据库连接为空");
+                return;
+            }
             pstmt.setString(1, playerUuid.toString());
             pstmt.setString(2, achievementId);
             pstmt.executeUpdate();
@@ -226,14 +218,13 @@ public class DatabaseManager {
 
     // 检查玩家是否拥有成就
     public boolean hasAchievement(UUID playerUuid, String achievementId) {
-        Connection conn = getConnection();
-        if (conn == null) {
-            return false;
-        }
-        
         String sql = "SELECT 1 FROM player_achievements WHERE player_uuid = ? AND achievement_id = ?";
 
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            if (conn == null) {
+                return false;
+            }
             pstmt.setString(1, playerUuid.toString());
             pstmt.setString(2, achievementId);
             ResultSet rs = pstmt.executeQuery();
@@ -247,14 +238,13 @@ public class DatabaseManager {
     // 获取玩家所有成就
     public java.util.Set<String> getPlayerAchievements(UUID playerUuid) {
         java.util.Set<String> achievements = new java.util.HashSet<>();
-        Connection conn = getConnection();
-        if (conn == null) {
-            return achievements;
-        }
-        
         String sql = "SELECT achievement_id FROM player_achievements WHERE player_uuid = ?";
 
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            if (conn == null) {
+                return achievements;
+            }
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
@@ -274,12 +264,6 @@ public class DatabaseManager {
                                int highestWinStreak, int currentWinStreak, double totalDamageDealt,
                                double totalDamageTaken, int totalBlocksBroken, int totalBlocksPlaced,
                                int totalItemsLooted) {
-        Connection conn = getConnection();
-        if (conn == null) {
-            plugin.getLogger().warning("无法保存统计数据到数据库：数据库连接为空");
-            return;
-        }
-        
         String sql = """
             INSERT INTO player_statistics (player_uuid, total_kills, total_deaths, total_wins,
                 total_games_played, damage_dealt, damage_taken, blocks_placed, blocks_broken, items_looted,
@@ -305,7 +289,12 @@ public class DatabaseManager {
                 total_items_looted = VALUES(total_items_looted)
             """;
 
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            if (conn == null) {
+                plugin.getLogger().warning("无法保存统计数据到数据库：数据库连接为空");
+                return;
+            }
             pstmt.setString(1, playerUuid.toString());
             pstmt.setInt(2, totalKills);
             pstmt.setInt(3, totalDeaths);
@@ -331,14 +320,13 @@ public class DatabaseManager {
 
     // 加载玩家统计数据
     public PlayerStatisticsData loadStatistics(UUID playerUuid) {
-        Connection conn = getConnection();
-        if (conn == null) {
-            return new PlayerStatisticsData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        }
-        
         String sql = "SELECT * FROM player_statistics WHERE player_uuid = ?";
 
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            if (conn == null) {
+                return new PlayerStatisticsData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            }
             pstmt.setString(1, playerUuid.toString());
             ResultSet rs = pstmt.executeQuery();
 
@@ -367,6 +355,48 @@ public class DatabaseManager {
         }
 
         return new PlayerStatisticsData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    // 加载所有玩家统计数据
+    public Map<UUID, PlayerStatisticsData> loadAllStatistics() {
+        Map<UUID, PlayerStatisticsData> allStats = new HashMap<>();
+        String sql = "SELECT * FROM player_statistics";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            if (conn == null) {
+                return allStats;
+            }
+
+            while (rs.next()) {
+                UUID uuid = UUID.fromString(rs.getString("player_uuid"));
+                PlayerStatisticsData data = new PlayerStatisticsData(
+                    rs.getInt("total_kills"),
+                    rs.getInt("total_deaths"),
+                    rs.getInt("total_wins"),
+                    rs.getInt("total_games_played"),
+                    rs.getDouble("damage_dealt"),
+                    rs.getDouble("damage_taken"),
+                    rs.getInt("blocks_placed"),
+                    rs.getInt("blocks_broken"),
+                    rs.getInt("items_looted"),
+                    rs.getInt("highest_win_streak"),
+                    rs.getInt("current_win_streak"),
+                    rs.getDouble("total_damage_dealt"),
+                    rs.getDouble("total_damage_taken"),
+                    rs.getInt("total_blocks_broken"),
+                    rs.getInt("total_blocks_placed"),
+                    rs.getInt("total_items_looted")
+                );
+                allStats.put(uuid, data);
+            }
+            plugin.getLogger().info("已从数据库加载 " + allStats.size() + " 条玩家统计记录");
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "加载所有统计数据失败: " + e.getMessage(), e);
+        }
+
+        return allStats;
     }
 
     public void close() {

@@ -32,7 +32,7 @@ public enum EventType {
    LAVA_RISE(26, "岩浆上升", "§c往上走！", 30, "§c", "§f"),
    LOOK_AT_ME(27, "看我看我", "§e全体目光向我看齐！", 15, "§e", "§f"),
    FIRED(28, "我火了", "§c物理上的", 15, "§c", "§f"),
-   KEY_INVERSION(29, "键位反转", "§5WASD反转了", 20, "§5", "§f"),
+   NOTHING_29(29, "无事发生", "§a无事发生...", 0, "§a", "§f"),
    ALWAYS_EXPLODE(30, "不是怎么老被炸呀", "§c我的假牙！", 0, "§c", "§f"),
    NOTHING_31(31, "无事发生", "§a无事发生...", 0, "§a", "§a"),
    NOTHING_32(32, "无事发生", "§a无事发生...", 0, "§a", "§f"),
@@ -116,6 +116,6 @@ public enum EventType {
    }
 
    public boolean isRealEvent() {
-      return this.id < 32;
+      return this.id < 31 || this.id == 36; // 31-35是NOTHING事件，36是MADE_IN_HEAVEN
    }
 }

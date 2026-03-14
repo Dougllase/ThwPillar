@@ -145,13 +145,118 @@ public class EventSystem {
 
       this.endCurrentEvent();
       
+      // 游戏结束时，清理所有在线玩家的事件属性（包括被淘汰的玩家）
+      this.cleanupAllPlayersEventAttributes();
+      
       // 重置国王游戏触发状态
       this.kingGameTriggered = false;
+   }
+   
+   /**
+    * 清理所有在线玩家的事件属性
+    * 在游戏结束时调用，只清理事件附加的效果，保留物品等其他来源的效果
+    */
+   private void cleanupAllPlayersEventAttributes() {
+      this.plugin.getLogger().info("[事件系统] 游戏结束，开始清理所有玩家的事件属性");
+      
+      for (Player player : Bukkit.getOnlinePlayers()) {
+         this.debugLogger.debug("[事件系统] 清理玩家事件属性: " + player.getName());
+         
+         // 只清理事件添加的体型修改（以 event_ 开头的修改器）
+         AttributeInstance scaleAttr = player.getAttribute(Attribute.SCALE);
+         if (scaleAttr != null) {
+            scaleAttr.getModifiers().stream()
+               .filter(mod -> mod.getName().startsWith("event_"))
+               .forEach(scaleAttr::removeModifier);
+         }
+         
+         // 只清理事件添加的速度修改（以 event_ 开头的修改器）
+         AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+         if (speedAttr != null) {
+            speedAttr.getModifiers().stream()
+               .filter(mod -> mod.getName().startsWith("event_"))
+               .forEach(speedAttr::removeModifier);
+         }
+         
+         // 只清理事件添加的攻击伤害修改（以 event_ 开头的修改器）
+         AttributeInstance attackDamage = player.getAttribute(Attribute.ATTACK_DAMAGE);
+         if (attackDamage != null) {
+            attackDamage.getModifiers().stream()
+               .filter(mod -> mod.getName().startsWith("event_"))
+               .forEach(attackDamage::removeModifier);
+         }
+         
+         // 只清理事件添加的跳跃强度修改（以 event_ 开头的修改器）
+         AttributeInstance jumpAttr = player.getAttribute(Attribute.JUMP_STRENGTH);
+         if (jumpAttr != null) {
+            jumpAttr.getModifiers().stream()
+               .filter(mod -> mod.getName().startsWith("event_"))
+               .forEach(jumpAttr::removeModifier);
+         }
+         
+         // 只清理事件添加的方块交互距离修改
+         try {
+            Attribute blockRangeAttr = Attribute.valueOf("PLAYER_BLOCK_INTERACTION_RANGE");
+            AttributeInstance blockRange = player.getAttribute(blockRangeAttr);
+            if (blockRange != null) {
+               blockRange.getModifiers().stream()
+                  .filter(mod -> mod.getName().startsWith("event_"))
+                  .forEach(blockRange::removeModifier);
+            }
+         } catch (IllegalArgumentException e) {
+         }
+         
+         // 只清理事件添加的实体交互距离修改
+         try {
+            Attribute entityRangeAttr = Attribute.valueOf("PLAYER_ENTITY_INTERACTION_RANGE");
+            AttributeInstance entityRange = player.getAttribute(entityRangeAttr);
+            if (entityRange != null) {
+               entityRange.getModifiers().stream()
+                  .filter(mod -> mod.getName().startsWith("event_"))
+                  .forEach(entityRange::removeModifier);
+            }
+         } catch (IllegalArgumentException e) {
+         }
+         
+         // 恢复飞行状态（这是事件系统记录的，需要恢复）
+         if (this.originalAllowFlight.containsKey(player.getUniqueId())) {
+            player.setAllowFlight(this.originalAllowFlight.get(player.getUniqueId()));
+            player.setFlying(false);
+         }
+         
+         // 只移除事件添加的药水效果（事件添加的效果可以通过特定方式识别，这里不移除所有效果）
+         // 注意：事件添加的药水效果（如缓慢、挖掘疲劳等）会在自然时间结束后消失
+         // 如果需要立即清除，可以在这里添加特定效果的清除逻辑
+      }
+      
+      this.originalAllowFlight.clear();
+      this.plugin.getLogger().info("[事件系统] 所有玩家的事件属性已清理完成");
    }
 
    public void triggerRandomEvent() {
       EventType eventType;
-      if (this.forcedNextEvent != null) {
+      
+      // 检查薛定谔的猫机制是否启用
+      if (this.plugin.getSchrodingerCatManager().isEnabled() && this.forcedNextEvent == null 
+          && !this.gameManager.getRuleSystem().shouldForceInvExchange()) {
+         // 从薛定谔的猫机制获取下一个事件
+         eventType = this.plugin.getSchrodingerCatManager().getNextEvent();
+         this.plugin.getLogger().info("[事件系统] 从薛定谔的猫机制获取事件: " + eventType.getName());
+         
+         // 处理国王游戏标记
+         if (eventType == EventType.KING_GAME) {
+            if (this.kingGameTriggered) {
+               // 如果已经触发过国王游戏，重新随机一个事件
+               this.plugin.getLogger().info("[事件系统] 国王游戏已触发过，重新选择事件");
+               do {
+                  eventType = EventType.getById(this.random.nextInt(35) + 1);
+               } while (eventType == EventType.KING_GAME);
+            } else {
+               this.kingGameTriggered = true;
+               this.plugin.getLogger().info("[事件系统] 国王游戏事件已触发，本局将不再重复触发");
+            }
+         }
+      } else if (this.forcedNextEvent != null) {
          eventType = this.forcedNextEvent;
          this.plugin.getLogger().info("[事件系统] 触发强制设置的事件: " + eventType.getName());
          this.forcedNextEvent = null;
@@ -228,7 +333,7 @@ public class EventSystem {
 
       // 创建新的 BossBar
       net.kyori.adventure.text.Component title = net.kyori.adventure.text.Component.text("事件: " + eventType.getName());
-      this.eventBossBar = net.kyori.adventure.bossbar.BossBar.bossBar(title, 1.0f, net.kyori.adventure.bossbar.BossBar.Color.YELLOW, net.kyori.adventure.bossbar.BossBar.Overlay.PROGRESS);
+      this.eventBossBar = net.kyori.adventure.bossbar.BossBar.bossBar(title, 1.0f, net.kyori.adventure.bossbar.BossBar.Color.PINK, net.kyori.adventure.bossbar.BossBar.Overlay.PROGRESS);
 
       // 为所有在线玩家显示 BossBar
       for (Player player : Bukkit.getOnlinePlayers()) {
@@ -252,11 +357,11 @@ public class EventSystem {
          net.kyori.adventure.text.Component title = net.kyori.adventure.text.Component.text("事件: " + (this.currentEvent != null ? this.currentEvent.getName() : "") + " - " + timeText + "秒");
          this.eventBossBar.name(title);
 
-         // 根据剩余时间改变颜色
+         // 根据剩余时间改变颜色 (红-粉-绿过渡)
          if (progress > 0.6f) {
             this.eventBossBar.color(net.kyori.adventure.bossbar.BossBar.Color.GREEN);
          } else if (progress > 0.3f) {
-            this.eventBossBar.color(net.kyori.adventure.bossbar.BossBar.Color.YELLOW);
+            this.eventBossBar.color(net.kyori.adventure.bossbar.BossBar.Color.PINK);
          } else {
             this.eventBossBar.color(net.kyori.adventure.bossbar.BossBar.Color.RED);
          }
@@ -380,9 +485,6 @@ public class EventSystem {
          case FIRED:
             this.eventFired();
             break;
-         case KEY_INVERSION:
-            this.eventKeyInversion();
-            break;
          case ALWAYS_EXPLODE:
             this.eventAlwaysExplode();
             break;
@@ -447,8 +549,6 @@ public class EventSystem {
             case LOOK_AT_ME:
                this.tickLookAtMe();
                break;
-            case KEY_INVERSION:
-               this.tickKeyInversion();
          }
       }
    }
@@ -583,7 +683,6 @@ public class EventSystem {
          }
 
          this.gameManager.setLookAtMeTarget(null);
-         this.gameManager.setKeyInversionActive(false);
          this.currentEvent = null;
          this.eventDuration = 0;
          
@@ -1106,85 +1205,56 @@ public class EventSystem {
 
    private void eventLuckyDoll() {
       this.debugLogger.eventInfo("[事件18-幸运玩偶] 开始执行，玩家数: " + this.getInGamePlayers().size());
-      String[] playerIds = new String[]{
-         "fishing886_",
-         "YuWan_SAMA",
-         "home1247",
-         "XuetiaoG",
-         "TheXiaoYu0v0_",
-         "pingsanyi",
-         "Rachel521",
-         "BingHuoX",
-         "mc_mdba",
-         "bulu__boom",
-         "TheTaiZiY",
-         "CraftSuperkulou",
-         "HashBrown0v0",
-         "M14_Mod3",
-         "Mayro_neko",
-         "iamakiller1654",
-         "carefree_lonely",
-         "efsdw",
-         "FTHR_Linncdr",
-         "Hart_GS",
-         "angeng233",
-         "baokaixin",
-         "si_feng",
-         "tianxiao123",
-         "offline_anytime",
-         "Tartgralia",
-         "Dougllase",
-         "田所浩二"
-      };
-      String[] greetings = new String[]{
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "这里已经满员了",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "祝君好运:）",
-         "土豆地雷",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)",
-         "你好:)"
+      
+      // 与数据包 doll.json 同步的玩偶列表
+      DollEntry[] dolls = new DollEntry[]{
+         new DollEntry("fishing886_", "你好:)"),
+         new DollEntry("YuWan_SAMA", "你好:)"),
+         new DollEntry("home1247", "你好:)"),
+         new DollEntry("XuetiaoG", "这里已经满员了"),
+         new DollEntry("TheXiaoYu0v0_", "你好:)"),
+         new DollEntry("pingsanyi", "你好:)"),
+         new DollEntry("Rachel521", "你好:)"),
+         new DollEntry("BingHuoX", "你好:)"),
+         new DollEntry("mc_mdba", "你好:)"),
+         new DollEntry("bulu__boom", "你好:)"),
+         new DollEntry("TheTaiZiY", "你好:)"),
+         new DollEntry("CraftSuperkulou", "祝君好运:)"),
+         new DollEntry("HashBrown0v0", "土豆地雷"),
+         new DollEntry("baokaixin", "你好:)"),
+         new DollEntry("si_feng", "你好:)"),
+         new DollEntry("angeng233", "你好可爱，摸摸❤️"),
+         new DollEntry("iamakiller1654", "你好:)"),
+         new DollEntry("Mayro_Neko", "你好:)"),
+         new DollEntry("Hart_GS", "你好:)"),
+         new DollEntry("Offline_Anytime", "你好:)"),
+         new DollEntry("Tianxiao123", "你好:)"),
+         new DollEntry("Carefree_lonely", "你好:)"),
+         new DollEntry("Fthr_LinnCdr", "你好:)"),
+         new DollEntry("M14_MOD3", "你好:)"),
+         new DollEntry("efsdw", "我喜欢你们也来玩玩MW看看吧兑，，，()")
       };
 
       for (Player player : this.getInGamePlayers()) {
          Location loc = player.getLocation();
-         int index = this.random.nextInt(playerIds.length);
-         String playerId = playerIds[index];
-         String greeting = greetings[index];
-         this.plugin.getLogger().info("[事件18-幸运玩偶] 玩家: " + player.getName() + " 获得幸运玩偶 " + playerId);
+         int index = this.random.nextInt(dolls.length);
+         DollEntry dollEntry = dolls[index];
+         this.plugin.getLogger().info("[事件18-幸运玩偶] 玩家: " + player.getName() + " 获得幸运玩偶 " + dollEntry.playerId);
          Bukkit.getRegionScheduler().execute(this.plugin, loc, () -> {
             ItemStack doll = new ItemStack(Material.TOTEM_OF_UNDYING);
             doll.editMeta(meta -> {
                meta.setDisplayName("§6§l幸运玩偶");
-               meta.setLore(Arrays.asList("§a" + greeting, "§b玩家ID：§b" + playerId));
+               meta.setLore(Arrays.asList("§a" + dollEntry.greeting, "§b玩家ID：§b" + dollEntry.playerId));
             });
             player.getInventory().addItem(new ItemStack[]{doll});
-            this.plugin.getLogger().info("[事件18-幸运玩偶] 玩家: " + player.getName() + " 获得幸运玩偶 " + playerId);
-            player.sendMessage("§a幸运降临！你获得了幸运玩偶 §b" + playerId);
+            this.plugin.getLogger().info("[事件18-幸运玩偶] 玩家: " + player.getName() + " 获得幸运玩偶 " + dollEntry.playerId);
+            player.sendMessage("§a幸运降临！你获得了幸运玩偶 §b" + dollEntry.playerId);
          });
       }
    }
+   
+   // 玩偶条目内部类
+   private record DollEntry(String playerId, String greeting) {}
 
    private void eventHungry() {
       this.debugLogger.eventInfo("[事件19-饿啊饿啊] 开始执行，玩家数: " + this.getInGamePlayers().size());
@@ -1570,15 +1640,6 @@ public class EventSystem {
       }
    }
 
-   private void eventKeyInversion() {
-      this.debugLogger.eventInfo("[事件31-键位反转] 开始执行，玩家数: " + this.getInGamePlayers().size());
-      this.gameManager.setKeyInversionActive(true);
-
-      for (Player player : this.getInGamePlayers()) {
-         player.sendMessage("§d按键反转了！W=S, A=D");
-      }
-   }
-
    /**
     * 事件30-不是怎么老被炸呀
     * 在所有玩家身边产生不造成击退的爆炸，造成6点固定伤害，并将装备耐久设为1
@@ -1632,12 +1693,6 @@ public class EventSystem {
          if (boots != null && boots.getType() != Material.AIR) {
             boots.setDurability((short) (boots.getType().getMaxDurability() - 1));
          }
-      }
-   }
-
-   private void tickKeyInversion() {
-      if (!this.gameManager.isKeyInversionActive()) {
-         this.gameManager.setKeyInversionActive(true);
       }
    }
 

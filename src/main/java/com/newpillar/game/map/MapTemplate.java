@@ -14,6 +14,7 @@ public class MapTemplate {
    private final Material floorMaterial;
    private final Material pillarMaterial;
    private final Material cageMaterial;
+   private final int pillarHeight;
 
    public MapTemplate(MapType mapType, int playerCount) {
       this.mapType = mapType;
@@ -22,6 +23,8 @@ public class MapTemplate {
       this.floorMaterial = mapType.getFloorMaterial();
       this.pillarMaterial = Material.BEDROCK;
       this.cageMaterial = this.getCageMaterialForMap(mapType);
+      // 海洋地图使用30格高度（降低2格），其他地图使用39格
+      this.pillarHeight = (mapType == MapType.SEA) ? 30 : 39;
       this.generatePillarConfigs();
    }
 
@@ -94,6 +97,10 @@ public class MapTemplate {
       return this.cageMaterial;
    }
 
+   public int getPillarHeight() {
+      return this.pillarHeight;
+   }
+
    public static class PillarConfig {
       public final int x;
       public final int z;
@@ -107,26 +114,36 @@ public class MapTemplate {
          this.number = number;
       }
 
-      public Location getTeleportLocation(Location center) {
-         // 柱子高度为39格 (baseY + 1 到 baseY + 39)
-         // 笼子在 baseY + 40
-         // 玩家传送到笼子顶部上方1格: baseY + 41
+      public Location getTeleportLocation(Location center, int pillarHeight) {
+         // 柱子高度为 pillarHeight 格 (baseY + 1 到 baseY + pillarHeight)
+         // 笼子在 baseY + pillarHeight + 1
+         // 玩家传送到笼子顶部上方1格: baseY + pillarHeight + 2
          return new Location(
             center.getWorld(),
             (double)(center.getBlockX() + this.x) + 0.5,
-            (double)(center.getBlockY() + 41),
+            (double)(center.getBlockY() + pillarHeight + 2),
             (double)(center.getBlockZ() + this.z) + 0.5,
             this.yaw,
             0.0F
          );
       }
 
+      // 兼容旧代码的重载方法（默认使用39格高度）
+      public Location getTeleportLocation(Location center) {
+         return getTeleportLocation(center, 39);
+      }
+
       public Location getPillarBaseLocation(Location center) {
          return new Location(center.getWorld(), (double)(center.getBlockX() + this.x), (double)center.getBlockY(), (double)(center.getBlockZ() + this.z));
       }
 
+      public Location getCageLocation(Location center, int pillarHeight) {
+         return new Location(center.getWorld(), (double)(center.getBlockX() + this.x), (double)(center.getBlockY() + pillarHeight + 1), (double)(center.getBlockZ() + this.z));
+      }
+
+      // 兼容旧代码的重载方法（默认使用39格高度）
       public Location getCageLocation(Location center) {
-         return new Location(center.getWorld(), (double)(center.getBlockX() + this.x), (double)(center.getBlockY() + 40), (double)(center.getBlockZ() + this.z));
+         return getCageLocation(center, 39);
       }
    }
 }

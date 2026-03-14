@@ -8,13 +8,17 @@ author: Thw
 description: A fresh start of Lucky Pillar game based on data pack
 
 commands:
-  newpillar:
+  thwp:
     description: ThwNewPillar game commands
     usage: /<command> [join|leave|start|stop|status]
     aliases: [np]
   vote:
     description: Vote for game rules
     usage: /vote <number>
+  schrodinger:
+    description: Schrodinger's cat mechanism commands
+    usage: /schrodinger <toggle|insight|status|item|event|clearhistory>
+    aliases: [cat]
 
 permissions:
   newpillar.admin:

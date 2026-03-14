@@ -4,6 +4,9 @@ import com.newpillar.NewPillar;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
@@ -22,6 +25,7 @@ public class VanillaItemEffectManager {
     private final NewPillar plugin;
     private final VanillaItemManager vanillaItemManager;
     private final Random random = new Random();
+    private final Map<UUID, BossBar> dragonBossBars = new HashMap<>();
 
     public VanillaItemEffectManager(NewPillar plugin, VanillaItemManager vanillaItemManager) {
         this.plugin = plugin;
@@ -44,6 +48,7 @@ public class VanillaItemEffectManager {
                 case FIRE_CHARGE -> useFireCharge(player);
                 case END_CRYSTAL -> useEndCrystal(player);
                 case ENCHANTED_BOOK -> useEnchantedBook(player);
+                case DRAGON_EGG -> useDragonEgg(player);
             }
         } else {
             // 普通物品也支持右键使用
@@ -250,6 +255,185 @@ public class VanillaItemEffectManager {
         }
     }
 
+    // ==================== 龙蛋效果 ====================
+
+    private void useDragonEgg(Player player) {
+        // 龙蛋：召唤末影龙攻击其他玩家
+        // 在玩家当前位置生成（风险和机遇并存）
+        Location spawnLoc = player.getLocation().clone();
+
+        Bukkit.getRegionScheduler().execute(plugin, spawnLoc, () -> {
+            EnderDragon dragon = (EnderDragon) player.getWorld().spawnEntity(spawnLoc, EntityType.ENDER_DRAGON);
+            if (dragon != null) {
+                // 设置末影龙属性
+                dragon.setPhase(org.bukkit.entity.EnderDragon.Phase.CIRCLING); // 设置为盘旋阶段，立即开始行动
+
+                // 存储召唤者UUID，用于识别不攻击的玩家
+                dragon.getPersistentDataContainer().set(
+                    new NamespacedKey(plugin, "dragon_summoner"),
+                    PersistentDataType.STRING,
+                    player.getUniqueId().toString()
+                );
+
+                // 创建模拟BossBar
+                BossBar bossBar = Bukkit.createBossBar(
+                    ChatColor.DARK_PURPLE + "末影龙 (召唤者: " + player.getName() + ")",
+                    BarColor.PURPLE,
+                    BarStyle.SEGMENTED_10
+                );
+                bossBar.setProgress(1.0);
+
+                // 为所有在线玩家显示BossBar
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    bossBar.addPlayer(p);
+                }
+
+                // 存储BossBar引用
+                dragonBossBars.put(dragon.getUniqueId(), bossBar);
+
+                // 播放音效和粒子效果
+                player.getWorld().playSound(spawnLoc, Sound.ENTITY_ENDER_DRAGON_GROWL, 2.0f, 1.0f);
+                player.getWorld().spawnParticle(Particle.DRAGON_BREATH, spawnLoc, 100, 2, 2, 2, 0.1);
+
+                player.sendMessage(ChatColor.DARK_PURPLE + "末影龙已被召唤！它将攻击你的敌人！");
+
+                // 启动末影龙AI任务，使其主动攻击其他玩家
+                startDragonAttackTask(dragon, player);
+
+                // 消耗龙蛋
+                Bukkit.getRegionScheduler().run(plugin, player.getLocation(), task -> consumeItem(player));
+            }
+        });
+    }
+
+    /**
+     * 启动末影龙攻击任务
+     * 使末影龙主动寻找并攻击除召唤者外的其他玩家
+     */
+    private void startDragonAttackTask(EnderDragon dragon, Player summoner) {
+        // 使用全局调度器定期检查并更新末影龙目标
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, new java.util.function.Consumer<io.papermc.paper.threadedregions.scheduler.ScheduledTask>() {
+            private int ticks = 0;
+
+            @Override
+            public void accept(io.papermc.paper.threadedregions.scheduler.ScheduledTask task) {
+                if (!dragon.isValid() || dragon.isDead()) {
+                    // 清理BossBar
+                    removeDragonBossBar(dragon.getUniqueId());
+                    task.cancel();
+                    return;
+                }
+
+                ticks++;
+
+                // 每5tick更新一次BossBar血量
+                if (ticks % 5 == 0) {
+                    updateDragonBossBar(dragon);
+                }
+
+                // 每20tick（1秒）更新一次目标
+                if (ticks % 20 == 0) {
+                    // 寻找最近的非召唤者玩家作为目标
+                    Player target = findNearestPlayerForDragon(dragon, summoner);
+                    if (target != null) {
+                        // 设置末影龙攻击目标
+                        dragon.setTarget(target);
+
+                        // 使用RegionScheduler在目标位置执行攻击逻辑
+                        Bukkit.getRegionScheduler().execute(plugin, target.getLocation(), () -> {
+                            if (dragon.isValid() && !dragon.isDead()) {
+                                // 向目标发射龙息弹
+                                Location dragonLoc = dragon.getLocation();
+                                Location targetLoc = target.getLocation();
+                                Vector direction = targetLoc.toVector().subtract(dragonLoc.toVector()).normalize();
+
+                                Location fireballLoc = dragonLoc.clone().add(direction.multiply(3));
+                                DragonFireball fireball = (DragonFireball) dragon.getWorld().spawnEntity(fireballLoc, EntityType.DRAGON_FIREBALL);
+                                if (fireball != null) {
+                                    fireball.setVelocity(direction.multiply(1.5));
+                                    fireball.setShooter(dragon);
+                                }
+                            }
+                        });
+                    } else {
+                        // 没有目标时清除目标
+                        dragon.setTarget(null);
+                    }
+                }
+
+                // 60秒后移除末影龙（1200 ticks）
+                if (ticks >= 1200) {
+                    if (dragon.isValid() && !dragon.isDead()) {
+                        dragon.getWorld().spawnParticle(Particle.DRAGON_BREATH, dragon.getLocation(), 50, 2, 2, 2, 0.1);
+                        dragon.remove();
+                    }
+                    // 清理BossBar
+                    removeDragonBossBar(dragon.getUniqueId());
+                    task.cancel();
+                }
+            }
+        }, 1L, 1L);
+    }
+
+    /**
+     * 更新末影龙BossBar血量
+     */
+    private void updateDragonBossBar(EnderDragon dragon) {
+        BossBar bossBar = dragonBossBars.get(dragon.getUniqueId());
+        if (bossBar != null && dragon.isValid() && !dragon.isDead()) {
+            double health = dragon.getHealth();
+            double maxHealth = dragon.getMaxHealth();
+            double progress = Math.max(0.0, Math.min(1.0, health / maxHealth));
+            bossBar.setProgress(progress);
+
+            // 根据血量改变颜色
+            if (progress > 0.6) {
+                bossBar.setColor(BarColor.PURPLE);
+            } else if (progress > 0.3) {
+                bossBar.setColor(BarColor.YELLOW);
+            } else {
+                bossBar.setColor(BarColor.RED);
+            }
+        }
+    }
+
+    /**
+     * 移除末影龙BossBar
+     */
+    private void removeDragonBossBar(UUID dragonUUID) {
+        BossBar bossBar = dragonBossBars.remove(dragonUUID);
+        if (bossBar != null) {
+            bossBar.removeAll();
+        }
+    }
+
+    /**
+     * 为末影龙寻找最近的非召唤者玩家
+     */
+    private Player findNearestPlayerForDragon(EnderDragon dragon, Player summoner) {
+        Player nearest = null;
+        double minDistance = Double.MAX_VALUE;
+
+        for (Player p : dragon.getWorld().getPlayers()) {
+            if (p.equals(summoner) || !p.isOnline() || p.isDead()) {
+                continue;
+            }
+
+            // 检查玩家是否在游戏中（不是观察者）
+            if (p.getGameMode() == GameMode.SPECTATOR) {
+                continue;
+            }
+
+            double distance = p.getLocation().distanceSquared(dragon.getLocation());
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearest = p;
+            }
+        }
+
+        return nearest;
+    }
+
     // ==================== 工具方法 ====================
 
     private void consumeItem(Player player) {
@@ -262,6 +446,10 @@ public class VanillaItemEffectManager {
     }
 
     public void cleanup() {
-        // 清理资源（如果需要）
+        // 清理所有BossBar
+        for (BossBar bossBar : dragonBossBars.values()) {
+            bossBar.removeAll();
+        }
+        dragonBossBars.clear();
     }
 }

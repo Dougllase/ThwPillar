@@ -166,6 +166,7 @@ public class LuckyBlockSystem implements Listener {
     
     /**
      * 打开幸运方块
+     * 与数据包 lucky_block/main.json 一致：60% main + 40% 战利品箱纸条
      */
     private void openLuckyBlock(Player player, ItemStack item) {
         // 消耗物品
@@ -175,17 +176,15 @@ public class LuckyBlockSystem implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
         
         // 随机决定奖励类型
+        // 数据包：60% main, 40% 战利品箱纸条
         int roll = random.nextInt(100);
         
         if (roll < 60) {
-            // 60% 概率：普通物品奖励
+            // 60% 概率：使用主物品池 (main)
             giveRandomLoot(player);
-        } else if (roll < 90) {
-            // 30% 概率：战利品箱
-            giveLootChest(player);
         } else {
-            // 10% 概率：特殊效果
-            triggerSpecialEffect(player);
+            // 40% 概率：战利品箱纸条
+            giveLootChest(player);
         }
     }
     
@@ -371,11 +370,13 @@ public class LuckyBlockSystem implements Listener {
                 player.sendMessage("§a§l经验奖励！§f 你获得了经验值！");
             }
             case 3 -> {
-                // 随机传送（短距离）
+                // 随机传送（短距离）- 使用 RegionScheduler 确保线程安全
                 Location loc = player.getLocation();
                 loc.add(random.nextInt(20) - 10, 0, random.nextInt(20) - 10);
                 loc.setY(player.getWorld().getHighestBlockYAt(loc) + 1);
-                player.teleport(loc);
+                Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
+                    player.teleport(loc);
+                });
                 player.sendMessage("§e§l随机传送！§f 你被传送到了附近！");
             }
             case 4 -> {

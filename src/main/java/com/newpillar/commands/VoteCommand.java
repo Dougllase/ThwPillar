@@ -3,7 +3,6 @@ package com.newpillar.commands;
 import com.newpillar.NewPillar;
 import com.newpillar.game.GameManager;
 import com.newpillar.game.enums.GameStatus;
-import com.newpillar.game.enums.RuleType;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -14,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * /vote 命令 - 用于规则投票
+ * /vote 命令 - 用于规则投票（GUI版本）
  */
 public class VoteCommand implements CommandExecutor, TabCompleter {
     private final NewPillar plugin;
@@ -25,16 +24,8 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        List<String> completions = new ArrayList<>();
-        
-        if (args.length == 1) {
-            // 提供1、2、3三个数字选项
-            completions.add("1");
-            completions.add("2");
-            completions.add("3");
-        }
-        
-        return completions;
+        // 返回空列表，不提供自动补全
+        return new ArrayList<>();
     }
 
     @Override
@@ -58,42 +49,8 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // 无参数时打开投票GUI
-        if (args.length < 1) {
-            this.plugin.getVoteGUI().openVoteGUI(player);
-            return true;
-        }
-
-        // 解析投票编号
-        int voteNumber;
-        try {
-            voteNumber = Integer.parseInt(args[0]);
-        } catch (NumberFormatException e) {
-            player.sendMessage("§c请输入有效的数字！");
-            return true;
-        }
-
-        // 验证编号范围
-        if (voteNumber < 1 || voteNumber > 3) {
-            player.sendMessage("§c请输入 1-3 之间的数字！");
-            return true;
-        }
-
-        // 获取对应的规则
-        RuleType selectedRule = gameManager.getVotingRule(voteNumber - 1);
-        if (selectedRule == null) {
-            player.sendMessage("§c无效的投票选项！");
-            return true;
-        }
-
-        // 执行投票
-        boolean success = gameManager.castVote(player, selectedRule);
-        if (success) {
-            player.sendMessage("§a你已成功投票给: §f" + selectedRule.getName());
-        } else {
-            player.sendMessage("§c投票失败，你可能已经投过票了！");
-        }
-
+        // 直接打开投票GUI（不再处理数字参数）
+        this.plugin.getVoteGUI().openVoteGUI(player);
         return true;
     }
 }

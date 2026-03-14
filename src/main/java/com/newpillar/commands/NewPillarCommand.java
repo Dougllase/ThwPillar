@@ -132,6 +132,14 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
 
                   this.handleItemCommand(player, args);
                   break;
+               case "loottest":
+                  if (!player.hasPermission("newpillar.admin")) {
+                     player.sendMessage("§c你没有权限！");
+                     return true;
+                  }
+
+                  this.handleLootTestCommand(player, args);
+                  break;
                case "autostart":
                   if (!player.hasPermission("newpillar.admin")) {
                      player.sendMessage("§c你没有权限！");
@@ -147,6 +155,22 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
                   }
 
                   this.handleMinPlayersCommand(player, args, gameManager);
+                  break;
+               case "allitems":
+                  if (!player.hasPermission("newpillar.admin")) {
+                     player.sendMessage("§c你没有权限！");
+                     return true;
+                  }
+
+                  this.handleAllItemsCommand(player, args);
+                  break;
+               case "collapse":
+                  if (!player.hasPermission("newpillar.admin")) {
+                     player.sendMessage("§c你没有权限！");
+                     return true;
+                  }
+
+                  this.handleCollapseCommand(player, gameManager);
                   break;
                default:
                   this.sendHelp(player);
@@ -164,7 +188,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
       if (args.length == 1) {
          List<String> completions = new ArrayList<>(Arrays.asList("spectator", "status", "stats", "rule"));
          if (sender.hasPermission("newpillar.admin")) {
-            completions.addAll(Arrays.asList("start", "forcestart", "stop", "test", "mapmenu", "event", "item", "autostart", "menu", "minplayers"));
+            completions.addAll(Arrays.asList("start", "forcestart", "stop", "test", "mapmenu", "event", "item", "loottest", "autostart", "menu", "minplayers", "allitems", "collapse"));
          }
 
          return completions.stream().filter(s -> s.startsWith(args[0].toLowerCase())).toList();
@@ -224,6 +248,24 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
                .toList()
          );
          return completions;
+      } else if (args.length == 2 && args[0].equalsIgnoreCase("loottest")) {
+         // loottest 指令的自动补全 - 列出所有战利品表
+         return this.plugin.getLootTableSystem().getAllLootTableNames()
+            .stream()
+            .filter(s -> s.startsWith(args[1].toLowerCase()))
+            .toList();
+      } else if (args.length == 3 && args[0].equalsIgnoreCase("loottest")) {
+         // loottest 指令的类别筛选补全
+         List<String> completions = new ArrayList<>(Arrays.asList("block", "weapon", "food", "tool", "armor", "special", "all", "none"));
+         completions.addAll(Arrays.asList("1", "10", "100", "1000"));
+         return completions.stream()
+            .filter(s -> s.startsWith(args[2].toLowerCase()))
+            .toList();
+      } else if (args.length == 4 && args[0].equalsIgnoreCase("loottest")) {
+         // loottest 指令的次数补全
+         return Arrays.asList("1", "10", "100", "1000").stream()
+            .filter(s -> s.startsWith(args[3]))
+            .toList();
       } else {
          return List.of();
       }
@@ -254,9 +296,13 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
          player.sendMessage("§f/np event stop §7- 停止当前事件 (Admin)");
          player.sendMessage("§f/np item <物品名> §7- 获取特殊物品 (Admin)");
          player.sendMessage("§f/np item list §7- 列出所有特殊物品 (Admin)");
+         player.sendMessage("§f/np allitems [类别] §7- 获取所有特殊物品 (Admin)");
+         player.sendMessage("§f/np loottest <战利品表> [类别] [次数] §7- 测试战利品表随机结果 (Admin)");
+         player.sendMessage("§7  类别: block, weapon, food, tool, armor, special, all, none");
          player.sendMessage("§f/np autostart <on|off|toggle|status> §7- 控制自动开始功能 (Admin)");
          player.sendMessage("§f/np minplayers set <数量> §7- 设置自动开始所需的最少玩家数 (Admin)");
          player.sendMessage("§f/np minplayers get §7- 查看当前自动开始所需的最少玩家数 (Admin)");
+         player.sendMessage("§f/np collapse §7- 强制触发平台崩塌 (Admin)");
       }
    }
 
@@ -611,7 +657,7 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
          case BIG_FLAME_ROD -> "big_flame_rod";
          case MEOW_AXE -> "meow_axe";
          case FLY_MACE -> "fly_mace";
-         case INVISIBLE_SAND -> "invisible_scarf";
+         case INVISIBLE_SAND -> "invisible_sand";
          case FEATHER -> "feather";
          case GODLY_PICKAXE -> "godly_pickaxe";
          case SPECIAL_BOW -> "special_bow";
@@ -623,49 +669,303 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
    }
    
    /**
+    * 处理战利品表测试命令
+    */
+   private void handleLootTestCommand(Player player, String[] args) {
+      if (args.length < 2) {
+         player.sendMessage("§c用法: /np loottest <战利品表名称> [类别] [测试次数]");
+         player.sendMessage("§7示例: /np loottest main");
+         player.sendMessage("§7示例: /np loottest main 100");
+         player.sendMessage("§7示例: /np loottest main weapon 1000");
+         player.sendMessage("§7类别: block, weapon, food, tool, armor, special, all, none");
+         player.sendMessage("§7使用 Tab 键查看所有可用的战利品表");
+         return;
+      }
+
+      String tableName = args[1];
+      String categoryFilter = "none"; // 默认不筛选
+      int times = 100; // 默认测试100次
+
+      // 解析参数
+      if (args.length >= 3) {
+         // 检查第三个参数是类别还是次数
+         java.util.List<String> categories = Arrays.asList("block", "weapon", "food", "tool", "armor", "special", "all", "none");
+         if (categories.contains(args[2].toLowerCase())) {
+            categoryFilter = args[2].toLowerCase();
+            if (args.length >= 4) {
+               try {
+                  times = Integer.parseInt(args[3]);
+               } catch (NumberFormatException e) {
+                  player.sendMessage("§c请输入有效的数字！");
+                  return;
+               }
+            }
+         } else {
+            try {
+               times = Integer.parseInt(args[2]);
+            } catch (NumberFormatException e) {
+               player.sendMessage("§c无效的类别或数字！");
+               player.sendMessage("§7类别: block, weapon, food, tool, armor, special, all, none");
+               return;
+            }
+         }
+      }
+
+      if (times < 1 || times > 10000) {
+         player.sendMessage("§c测试次数必须在 1-10000 之间！");
+         return;
+      }
+
+      // 检查战利品表是否存在
+      java.util.List<String> availableTables = this.plugin.getLootTableSystem().getAllLootTableNames();
+      if (!availableTables.contains(tableName)) {
+         player.sendMessage("§c未知的战利品表: §f" + tableName);
+         player.sendMessage("§7可用的战利品表:");
+         availableTables.forEach(name -> player.sendMessage("§7  - §f" + name));
+         return;
+      }
+
+      player.sendMessage("§6=== 战利品表测试 ===");
+      player.sendMessage("§7测试次数: §f" + times);
+      player.sendMessage("§7正在测试中...");
+
+      // 执行测试
+      java.util.Map<String, Integer> results = this.plugin.getLootTableSystem().testLootTable(tableName, times);
+      
+      // 如果有类别筛选，过滤结果
+      if (!categoryFilter.equals("none")) {
+         results = filterResultsByCategory(results, categoryFilter);
+      }
+
+      // 计算总物品数
+      int totalItems = results.values().stream().mapToInt(Integer::intValue).sum();
+      int emptyCount = results.getOrDefault("(空)", 0);
+      int actualItems = totalItems - emptyCount;
+
+      player.sendMessage("");
+      player.sendMessage("§a测试完成！结果统计：");
+      player.sendMessage("§7总抽取次数: §f" + times);
+      player.sendMessage("§7成功获取物品: §f" + actualItems + " §7(" + String.format("%.2f%%", actualItems * 100.0 / times) + ")");
+      if (emptyCount > 0) {
+         player.sendMessage("§7空奖次数: §f" + emptyCount + " §7(" + String.format("%.2f%%", emptyCount * 100.0 / times) + ")");
+      }
+
+      // 按数量排序显示
+      player.sendMessage("");
+      player.sendMessage("§6=== 物品掉落统计 ===");
+      final int finalTimes = times;
+      results.entrySet().stream()
+         .filter(e -> !e.getKey().equals("(空)"))
+         .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+         .limit(30) // 只显示前30个
+         .forEach(entry -> {
+            double percentage = entry.getValue() * 100.0 / finalTimes;
+            String bar = generatePercentageBar(percentage);
+            player.sendMessage("§f" + entry.getKey() + " §7x§f" + entry.getValue() + " §8(" + String.format("%.1f%%", percentage) + ") " + bar);
+         });
+
+      if (results.size() > 30) {
+         player.sendMessage("§7... 还有 §f" + (results.size() - 30) + " §7种物品");
+      }
+   }
+
+   /**
+    * 生成百分比进度条
+    */
+   private String generatePercentageBar(double percentage) {
+      int filled = (int) (percentage / 2); // 每2%一个方块
+      filled = Math.min(filled, 10); // 最多10个方块
+      int empty = 10 - filled;
+      return "§a" + "█".repeat(filled) + "§7" + "░".repeat(empty);
+   }
+
+   /**
+    * 按类别测试战利品表
+    * @param category 物品类别
+    * @param times 测试次数
+    * @return 测试结果统计
+    */
+   private java.util.Map<String, Integer> testLootTableByCategory(String category, int times) {
+      java.util.Map<String, Integer> results = new java.util.HashMap<>();
+      
+      for (int i = 0; i < times; i++) {
+         org.bukkit.inventory.ItemStack item = this.plugin.getLootTableSystem().generateLoot();
+         if (item != null && item.getType() != org.bukkit.Material.AIR) {
+            String itemName = item.hasItemMeta() && item.getItemMeta().hasDisplayName() 
+               ? item.getItemMeta().getDisplayName() 
+               : item.getType().name();
+            
+            // 检查物品类别
+            boolean matchesCategory = false;
+            org.bukkit.Material type = item.getType();
+            
+            switch (category) {
+               case "block":
+                  matchesCategory = type.isBlock();
+                  break;
+               case "weapon":
+                  matchesCategory = type.name().endsWith("SWORD") || type.name().endsWith("AXE") 
+                     || type.name().endsWith("MACE") || type.name().endsWith("TRIDENT")
+                     || type == org.bukkit.Material.BOW || type == org.bukkit.Material.CROSSBOW;
+                  break;
+               case "food":
+                  matchesCategory = type.isEdible();
+                  break;
+               case "tool":
+                  matchesCategory = type.name().endsWith("PICKAXE") || type.name().endsWith("SHOVEL")
+                     || type.name().endsWith("HOE") || type.name().endsWith("FLINT_AND_STEEL")
+                     || type.name().endsWith("SHEARS") || type.name().endsWith("FISHING_ROD");
+                  break;
+               case "armor":
+                  matchesCategory = type.name().endsWith("HELMET") || type.name().endsWith("CHESTPLATE")
+                     || type.name().endsWith("LEGGINGS") || type.name().endsWith("BOOTS")
+                     || type.name().endsWith("HORSE_ARMOR");
+                  break;
+               case "special":
+                  // 特殊物品检查
+                  if (item.hasItemMeta()) {
+                     org.bukkit.persistence.PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
+                     org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(this.plugin, "item_id");
+                     matchesCategory = container.has(key, org.bukkit.persistence.PersistentDataType.STRING);
+                  }
+                  break;
+               case "all":
+                  matchesCategory = true;
+                  break;
+            }
+            
+            if (matchesCategory) {
+               results.merge(itemName, 1, Integer::sum);
+            } else {
+               results.merge("(不符合类别)", 1, Integer::sum);
+            }
+         } else {
+            results.merge("(空)", 1, Integer::sum);
+         }
+      }
+      
+      return results;
+   }
+
+   /**
+    * 根据类别筛选战利品表测试结果
+    * @param results 原始结果
+    * @param category 类别筛选
+    * @return 筛选后的结果
+    */
+   private java.util.Map<String, Integer> filterResultsByCategory(java.util.Map<String, Integer> results, String category) {
+      java.util.Map<String, Integer> filtered = new java.util.HashMap<>();
+      
+      for (java.util.Map.Entry<String, Integer> entry : results.entrySet()) {
+         String itemName = entry.getKey();
+         int count = entry.getValue();
+         
+         // 跳过空奖
+         if (itemName.equals("(空)")) {
+            filtered.put(itemName, count);
+            continue;
+         }
+         
+         // 根据类别筛选
+         boolean matches = false;
+         String upperName = itemName.toUpperCase();
+         
+         switch (category) {
+            case "block":
+               // 检查是否是方块（通过Material判断）
+               try {
+                  org.bukkit.Material mat = org.bukkit.Material.valueOf(upperName);
+                  matches = mat.isBlock();
+               } catch (IllegalArgumentException e) {
+                  // 可能是自定义物品名称，尝试从显示名判断
+                  matches = false;
+               }
+               break;
+            case "weapon":
+               matches = upperName.contains("SWORD") || upperName.contains("AXE") 
+                  || upperName.contains("MACE") || upperName.contains("TRIDENT")
+                  || upperName.contains("BOW") || upperName.contains("CROSSBOW");
+               break;
+            case "food":
+               try {
+                  org.bukkit.Material mat = org.bukkit.Material.valueOf(upperName);
+                  matches = mat.isEdible();
+               } catch (IllegalArgumentException e) {
+                  matches = false;
+               }
+               break;
+            case "tool":
+               matches = upperName.contains("PICKAXE") || upperName.contains("SHOVEL")
+                  || upperName.contains("HOE") || upperName.contains("FLINT_AND_STEEL")
+                  || upperName.contains("SHEARS") || upperName.contains("FISHING_ROD");
+               break;
+            case "armor":
+               matches = upperName.contains("HELMET") || upperName.contains("CHESTPLATE")
+                  || upperName.contains("LEGGINGS") || upperName.contains("BOOTS")
+                  || upperName.contains("HORSE_ARMOR");
+               break;
+            case "special":
+               // 特殊物品：通过匹配 SpecialItemType 的显示名称来判断
+               matches = isSpecialItemByDisplayName(itemName);
+               break;
+            case "all":
+               matches = true;
+               break;
+         }
+         
+         if (matches) {
+            filtered.put(itemName, count);
+         }
+      }
+      
+      return filtered;
+   }
+
+   /**
+    * 根据显示名称判断是否是特殊物品
+    * @param displayName 物品显示名称
+    * @return 是否是特殊物品
+    */
+   private boolean isSpecialItemByDisplayName(String displayName) {
+      // 去除颜色代码后进行匹配
+      String cleanName = displayName.replaceAll("§[0-9a-fk-orA-FK-OR]", "").trim();
+      
+      // 遍历所有 SpecialItemType，检查显示名称是否匹配
+      for (com.newpillar.game.items.SpecialItemManager.SpecialItemType type : 
+           com.newpillar.game.items.SpecialItemManager.SpecialItemType.values()) {
+         if (type.getDisplayName().equals(cleanName)) {
+            return true;
+         }
+      }
+      
+      return false;
+   }
+
+   /**
     * 处理规则投票命令
     */
    private void handleRuleCommand(Player player, String[] args, GameManager gameManager) {
       if (args.length < 2) {
-         // 显示当前可投票的规则列表
+         // 显示当前可投票的规则列表，并直接打开GUI
          java.util.List<com.newpillar.game.enums.RuleType> votingRules = gameManager.getVotingRules();
          if (votingRules == null || votingRules.isEmpty()) {
             player.sendMessage("§c当前没有进行中的规则投票！");
             return;
          }
          
-         player.sendMessage("§6§l═══════════════════════════");
-         player.sendMessage("§e§l        规则投票");
-         player.sendMessage("");
-         for (int i = 0; i < votingRules.size(); i++) {
-            com.newpillar.game.enums.RuleType rule = votingRules.get(i);
-            player.sendMessage("§" + rule.getColor() + "§l[" + (i + 1) + "] " + rule.getName());
-            player.sendMessage("§7" + rule.getDescription());
-            player.sendMessage("");
-         }
-         player.sendMessage("§e使用 §f/vote <编号> §e进行规则投票");
-         player.sendMessage("§6§l═══════════════════════════");
+         // 直接打开投票GUI
+         plugin.getVoteGUI().openVoteGUI(player);
          return;
       }
       
       String subCommand = args[1].toLowerCase();
       switch (subCommand) {
          case "vote":
-            if (args.length < 3) {
-               player.sendMessage("§c用法: /np rule vote <编号>");
-               player.sendMessage("§7使用 §f/np rule §7查看可投票的规则列表");
-               return;
-            }
-            
-            try {
-               int voteIndex = Integer.parseInt(args[2]);
-               gameManager.playerVoteRule(player, voteIndex);
-            } catch (NumberFormatException e) {
-               player.sendMessage("§c请输入有效的数字编号！");
-            }
+            // 直接打开投票GUI，不再处理数字参数
+            plugin.getVoteGUI().openVoteGUI(player);
             break;
          default:
-            player.sendMessage("§c未知命令。用法: /np rule [vote <编号>]");
+            player.sendMessage("§c未知命令。用法: /np rule [vote]");
       }
    }
    
@@ -718,6 +1018,65 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
    }
 
    /**
+    * 处理获取所有特殊物品命令
+    */
+   private void handleAllItemsCommand(Player player, String[] args) {
+      String category = args.length >= 2 ? args[1].toLowerCase() : "all";
+      
+      java.util.List<com.newpillar.game.items.SpecialItemManager.SpecialItemType> itemsToGive = new java.util.ArrayList<>();
+      
+      for (com.newpillar.game.items.SpecialItemManager.SpecialItemType type : com.newpillar.game.items.SpecialItemManager.SpecialItemType.values()) {
+         String itemCategory = type.getCategory();
+         boolean shouldAdd = false;
+         
+         switch (category) {
+            case "all":
+               shouldAdd = true;
+               break;
+            case "attack":
+            case "weapon":
+               shouldAdd = itemCategory.equals("攻击类");
+               break;
+            case "assist":
+            case "armor":
+               shouldAdd = itemCategory.equals("辅助类");
+               break;
+            case "special":
+               // special 给所有特殊物品（攻击类+辅助类+特殊类）
+               shouldAdd = true;
+               break;
+            case "special_class":
+               // special_class 只给"特殊类"分类的物品
+               shouldAdd = itemCategory.equals("特殊类");
+               break;
+         }
+         
+         if (shouldAdd) {
+            itemsToGive.add(type);
+         }
+      }
+      
+      if (itemsToGive.isEmpty()) {
+         player.sendMessage("§c没有找到该类别的物品！");
+         player.sendMessage("§7可用类别: all, attack/weapon, assist/armor, special, special_class");
+         return;
+      }
+      
+      // 给予玩家所有物品
+      int count = 0;
+      for (com.newpillar.game.items.SpecialItemManager.SpecialItemType type : itemsToGive) {
+         org.bukkit.inventory.ItemStack item = this.plugin.getSpecialItemManager().createSpecialItem(type);
+         player.getInventory().addItem(item);
+         count++;
+      }
+      
+      player.sendMessage("§a已获得 §f" + count + " §a个特殊物品！");
+      if (!category.equals("all")) {
+         player.sendMessage("§7类别: §f" + category);
+      }
+   }
+
+   /**
     * 处理自动开始命令
     */
    private void handleAutoStartCommand(Player player, String[] args, GameManager gameManager) {
@@ -754,5 +1113,24 @@ public class NewPillarCommand implements CommandExecutor, TabCompleter {
          default:
             player.sendMessage("§c未知命令。用法: /np autostart <on|off|toggle|status>");
       }
+   }
+
+   /**
+    * 处理强制触发平台崩塌命令
+    */
+   private void handleCollapseCommand(Player player, GameManager gameManager) {
+      if (gameManager.getGameStatus() != com.newpillar.game.enums.GameStatus.PLAYING) {
+         player.sendMessage("§c游戏未在进行中，无法触发平台崩塌！");
+         return;
+      }
+
+      org.bukkit.World world = gameManager.getGameWorld();
+      if (world == null) {
+         player.sendMessage("§c游戏世界未加载！");
+         return;
+      }
+
+      player.sendMessage("§a正在强制触发平台崩塌...");
+      gameManager.getCollapseManager().startPlatformCollapse(world);
    }
 }

@@ -229,7 +229,16 @@ public class AdvancementManager {
             case BONES_WITHOUT_CHICKEN_FEET -> "bones_without_chicken_feet";
             case KNOCKBACK_STICK -> "knockback_stick";
             case GODLY_PICKAXE -> "godly_pickaxe";
-            case SPANWER -> "spawner";
+            case SPEAR -> "spear";
+            case LIFE_STEAL_SWORD -> "life_steal_sword";
+            case POISON_DAGGER -> "poison_dagger";
+            case INVISIBLE_SAND -> "invisible_sand";
+            case GRAVITY_BOOTS -> "gravity_boots";
+            case SHIELD_GENERATOR -> "shield_generator";
+            case EXCALIBUR -> "excalibur";
+            case SPECIAL_BOW -> "special_bow";
+            case SPECIAL_CROSSBOW -> "special_crossbow";
+            case SPAWNER -> "spawner";
             case NETHER_STAR_USE -> "nether_star_use";
             case DRAGON_BREATH_USE -> "dragon_breath_use";
             case ECHO_SHARD_USE -> "echo_shard_use";
@@ -243,6 +252,8 @@ public class AdvancementManager {
             case DEATH_1 -> "death_1";
             case DEATH_FALL -> "death_fall";
             case ELBOW_KING -> "elbow_king";
+            case RUSSIAN_ROULETTE -> "russian_roulette";
+            case RUSSIAN_ROULETTE_6 -> "russian_roulette_6";
         };
     }
     

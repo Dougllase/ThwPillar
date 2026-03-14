@@ -3,6 +3,7 @@ package com.newpillar;
 import com.newpillar.game.events.LuckyBlockSystem;
 
 import com.newpillar.game.items.LootTableSystem;
+import com.newpillar.game.items.RussianRouletteGUI;
 
 import com.newpillar.game.advancements.AdvancementManager;
 
@@ -12,10 +13,10 @@ import com.newpillar.game.items.SpecialItemManager;
 
 import com.newpillar.game.advancements.AdvancementGenerator;
 
+import com.newpillar.game.items.ExcaliburManager;
+import com.newpillar.game.items.ItemCooldownManager;
 import com.newpillar.game.items.ItemEffectManager;
-
 import com.newpillar.game.items.VanillaItemManager;
-
 import com.newpillar.game.items.VanillaItemEffectManager;
 
 import com.newpillar.game.data.StatisticsSystem;
@@ -24,6 +25,7 @@ import com.newpillar.commands.NewPillarCommand;
 import com.newpillar.database.DatabaseManager;
 import com.newpillar.dialog.DialogManager;
 import com.newpillar.game.*;
+import com.newpillar.integration.ThwRewardIntegration;
 import com.newpillar.listeners.PlayerListener;
 import com.newpillar.utils.DebugLogger;
 import com.newpillar.utils.StructureTemplate;
@@ -50,7 +52,12 @@ public class NewPillar extends JavaPlugin {
    private AdvancementManager advancementManager;
    private AdvancementGenerator advancementGenerator;
    private com.newpillar.game.gui.VoteGUI voteGUI;
+   private ExcaliburManager excaliburManager;
+   private RussianRouletteGUI russianRouletteGUI;
+   private ItemCooldownManager itemCooldownManager;
+   private SchrodingerCatManager schrodingerCatManager;
    private Set<UUID> pendingFoxSpawns = new HashSet<>();
+   private ThwRewardIntegration thwRewardIntegration;
 
    public void onEnable() {
       instance = this;
@@ -91,8 +98,29 @@ public class NewPillar extends JavaPlugin {
       
       // 初始化战利品表系统
       this.lootTableSystem = new LootTableSystem(this);
+
+      // 初始化EX咖喱棒管理器
+      this.excaliburManager = new ExcaliburManager(this);
       
-      this.getCommand("newpillar").setExecutor(new NewPillarCommand(this));
+      // 初始化俄罗斯轮盘枪GUI
+      this.russianRouletteGUI = new RussianRouletteGUI(this);
+      
+      // 初始化物品冷却管理器
+      this.itemCooldownManager = new ItemCooldownManager(this);
+      
+      // 初始化薛定谔的猫管理器
+      this.schrodingerCatManager = new SchrodingerCatManager(this);
+      
+      // 初始化ThwReward集成（子插件，可选）
+      this.thwRewardIntegration = new ThwRewardIntegration(this);
+      this.thwRewardIntegration.initialize();
+
+      this.getCommand("thwp").setExecutor(new NewPillarCommand(this));
+      
+      // 注册薛定谔的猫指令
+      com.newpillar.commands.SchrodingerCatCommand schrodingerCommand = new com.newpillar.commands.SchrodingerCatCommand(this);
+      this.getCommand("schrodinger").setExecutor(schrodingerCommand);
+      this.getCommand("schrodinger").setTabCompleter(schrodingerCommand);
       com.newpillar.commands.VoteCommand voteCommand = new com.newpillar.commands.VoteCommand(this);
       this.getCommand("vote").setExecutor(voteCommand);
       this.getCommand("vote").setTabCompleter(voteCommand);
@@ -112,6 +140,8 @@ public class NewPillar extends JavaPlugin {
       this.getLogger().info("统计系统已加载！");
       this.getLogger().info("幸运方块系统已加载！");
       this.getLogger().info("战利品表系统已加载！");
+      this.getLogger().info("薛定谔的猫系统已加载！");
+      this.getLogger().info("ThwReward奖励系统集成: " + (this.thwRewardIntegration.isEnabled() ? "已启用" : "未启用（子插件缺失）"));
    }
 
    public void onDisable() {
@@ -130,6 +160,11 @@ public class NewPillar extends JavaPlugin {
       // 关闭数据库连接
       if (this.databaseManager != null) {
          this.databaseManager.close();
+      }
+
+      // 关闭物品冷却管理器
+      if (this.itemCooldownManager != null) {
+         this.itemCooldownManager.shutdown();
       }
 
       this.getLogger().info("NewPillar 已禁用！");
@@ -199,8 +234,28 @@ public class NewPillar extends JavaPlugin {
       return this.advancementManager;
    }
 
+   public ExcaliburManager getExcaliburManager() {
+      return this.excaliburManager;
+   }
+
+   public RussianRouletteGUI getRussianRouletteGUI() {
+      return this.russianRouletteGUI;
+   }
+   
+   public ItemCooldownManager getItemCooldownManager() {
+      return this.itemCooldownManager;
+   }
+
    public AdvancementGenerator getAdvancementGenerator() {
       return this.advancementGenerator;
+   }
+   
+   public SchrodingerCatManager getSchrodingerCatManager() {
+      return this.schrodingerCatManager;
+   }
+
+   public ThwRewardIntegration getThwRewardIntegration() {
+      return this.thwRewardIntegration;
    }
 
    // 规则3狐狸生成标记方法

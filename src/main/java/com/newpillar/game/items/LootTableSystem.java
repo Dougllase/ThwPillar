@@ -20,7 +20,9 @@ import java.util.*;
 
 public class LootTableSystem {
     private final NewPillar plugin;
+    private final SpecialItemManager specialItemManager;
     private final Map<String, LootTable> lootTables = new HashMap<>();
+    private final Map<String, List<String>> itemTags = new HashMap<>();
     private final Random random = new Random();
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     
@@ -29,29 +31,139 @@ public class LootTableSystem {
     
     public LootTableSystem(NewPillar plugin) {
         this.plugin = plugin;
+        this.specialItemManager = new SpecialItemManager(plugin);
         initSpecialItems();
+        loadItemTags();
         loadLootTables();
     }
     
+    /**
+     * 加载物品标签配置
+     */
+    private void loadItemTags() {
+        File tagsDir = new File(plugin.getDataFolder(), "tags/item");
+        if (!tagsDir.exists()) {
+            tagsDir.mkdirs();
+        }
+        
+        // 每次都重新复制默认标签文件（确保更新）
+        createDefaultItemTags(tagsDir);
+        
+        loadItemTagsFromDirectory(tagsDir, "newpillar");
+    }
+    
+    /**
+     * 从目录加载物品标签
+     */
+    private void loadItemTagsFromDirectory(File dir, String namespace) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        
+        for (File file : files) {
+            if (file.isDirectory()) {
+                loadItemTagsFromDirectory(file, namespace);
+            } else if (file.getName().endsWith(".json")) {
+                String name = namespace + ":" + file.getName().replace(".json", "");
+                try {
+                    List<String> items = loadItemTag(file);
+                    itemTags.put(name, items);
+                    plugin.getLogger().info("加载物品标签: " + name + " (" + items.size() + " 个物品)");
+                } catch (Exception e) {
+                    plugin.getLogger().warning("加载物品标签失败: " + name + " - " + e.getMessage());
+                }
+            }
+        }
+    }
+    
+    /**
+     * 加载单个物品标签文件
+     */
+    private List<String> loadItemTag(File file) throws IOException {
+        List<String> items = new ArrayList<>();
+        
+        try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
+            JsonObject json = gson.fromJson(reader, JsonObject.class);
+            
+            if (json.has("values")) {
+                JsonArray values = json.getAsJsonArray("values");
+                for (JsonElement element : values) {
+                    items.add(element.getAsString());
+                }
+            }
+        }
+        
+        return items;
+    }
+    
+    /**
+     * 创建默认物品标签文件
+     */
+    private void createDefaultItemTags(File tagsDir) {
+        // 从插件资源中复制默认标签文件
+        try {
+            // 复制 item.json
+            InputStream itemTagStream = plugin.getResource("tags/item/item.json");
+            if (itemTagStream != null) {
+                File itemTagFile = new File(tagsDir, "item.json");
+                copyResourceToFile(itemTagStream, itemTagFile);
+                itemTagStream.close();
+                plugin.getLogger().info("已复制默认物品标签文件: item.json");
+            } else {
+                plugin.getLogger().warning("无法从资源加载 tags/item/item.json");
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("创建默认物品标签失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 复制资源文件到目标位置
+     */
+    private void copyResourceToFile(InputStream source, File target) throws IOException {
+        target.getParentFile().mkdirs();
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = source.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+        }
+    }
+    
     private void initSpecialItems() {
-        // 注册特殊物品创建器
-        specialItems.put("bruce", this::createBruce);
-        specialItems.put("blue_screen", this::createBlueScreen);
-        specialItems.put("fly_mace", this::createFlyMace);
-        specialItems.put("invisible_scarf", this::createInvisibleScarf);
-        specialItems.put("meow_axe", this::createMeowAxe);
-        specialItems.put("pixie", this::createPixie);
-        specialItems.put("rocket_boots", this::createRocketBoots);
-        specialItems.put("running_shoes", this::createRunningShoes);
+        // 注册特殊物品创建器（与战利品表 special/all.json 中的物品对应）
+        specialItems.put("knockback_stick", this::createKnockbackStick);
         specialItems.put("witch_apple", this::createWitchApple);
-        specialItems.put("yanpai", this::createYanpai);
+        specialItems.put("bruce", this::createBruce);
+        specialItems.put("godly_pickaxe", this::createGodlyPickaxe);
+        specialItems.put("spear", this::createSpear);
         specialItems.put("clock", this::createClock);
+        specialItems.put("meow_axe", this::createMeowAxe);
+        specialItems.put("big_flame_rod", this::createBigFlameRod);
+        specialItems.put("yanpai", this::createYanpai);
+        specialItems.put("blue_screen", this::createBlueScreen);
+        specialItems.put("gravity_boots", this::createGravityBoots);
         specialItems.put("hongbao", this::createHongbao);
         specialItems.put("hypnosis_app", this::createHypnosisApp);
+        specialItems.put("invisible_sand", this::createInvisibleSand);
+        specialItems.put("feather", this::createFeather);
+        specialItems.put("rocket_boots", this::createRocketBoots);
+        specialItems.put("running_shoes", this::createRunningShoes);
+        specialItems.put("fly_mace", this::createFlyMace);
         specialItems.put("bones_without_chicken_feet", this::createBonesWithoutChickenFeet);
-        specialItems.put("knockback_stick", this::createKnockbackStick);
-        specialItems.put("godly_pickaxe", this::createGodlyPickaxe);
+        specialItems.put("iron_sword", this::createSpecialIronSword);
+        specialItems.put("pixie", this::createPixie);
         specialItems.put("spawner", this::createSpawner);
+        // 新增的特殊物品
+        specialItems.put("special_bow", this::createSpecialBow);
+        specialItems.put("special_crossbow", this::createSpecialCrossbow);
+        specialItems.put("life_steal_sword", this::createLifeStealSword);
+        specialItems.put("poison_dagger", this::createPoisonDagger);
+        specialItems.put("shield_generator", this::createShieldGenerator);
+        specialItems.put("ex_curry_stick", this::createExCurryStick);
+        specialItems.put("the_world", this::createTheWorld);
+        specialItems.put("russian_roulette", this::createRussianRoulette);
+        // 其他系统中使用的特殊物品
         specialItems.put("lucky_block", this::createLuckyBlock);
     }
     
@@ -59,8 +171,10 @@ public class LootTableSystem {
         File lootTableDir = new File(plugin.getDataFolder(), "loot_tables");
         if (!lootTableDir.exists()) {
             lootTableDir.mkdirs();
-            createDefaultLootTables(lootTableDir);
         }
+        
+        // 每次都检查并创建默认战利品表（确保更新）
+        createDefaultLootTables(lootTableDir);
         
         loadLootTableFromDirectory(lootTableDir, "");
     }
@@ -139,7 +253,7 @@ public class LootTableSystem {
                     entry.setLootTableName(json.get("value").getAsString());
                 }
             }
-            case "special" -> {
+            case "special", "special_item" -> {
                 if (json.has("name")) {
                     entry.setSpecialItemName(json.get("name").getAsString());
                 }
@@ -223,6 +337,14 @@ public class LootTableSystem {
                             entry.setPotionType(true);
                             entry.setPotionEffect(funcObj.get("id").getAsString());
                         }
+                        // 支持自定义时长（秒）
+                        if (funcObj.has("duration")) {
+                            entry.setPotionDuration(funcObj.get("duration").getAsInt());
+                        }
+                        // 支持自定义等级（0=I级, 1=II级）
+                        if (funcObj.has("amplifier")) {
+                            entry.setPotionAmplifier(funcObj.get("amplifier").getAsInt());
+                        }
                     }
                     case "enchant_randomly" -> {
                         entry.setEnchantRandomly(true);
@@ -266,24 +388,72 @@ public class LootTableSystem {
     }
     
     /**
-     * 生成战利品（使用主表 main）
+     * 生成战利品（使用配置的 main_pool）
      * 供调试指令使用
      */
     public ItemStack generateLoot() {
-        return getRandomLoot("main");
+        String mainPool = plugin.getConfig().getString("loot_pools.main_pool", "main");
+        return getRandomLoot(mainPool);
+    }
+    
+    /**
+     * 获取所有已加载的战利品表名称
+     * @return 战利品表名称列表
+     */
+    public List<String> getAllLootTableNames() {
+        return new ArrayList<>(lootTables.keySet());
+    }
+    
+    /**
+     * 测试指定战利品表
+     * @param tableName 战利品表名称
+     * @param times 测试次数
+     * @return 测试结果统计 Map<物品名称, 出现次数>
+     */
+    public java.util.Map<String, Integer> testLootTable(String tableName, int times) {
+        java.util.Map<String, Integer> results = new java.util.HashMap<>();
+        
+        for (int i = 0; i < times; i++) {
+            ItemStack item = getRandomLoot(tableName);
+            if (item != null) {
+                String itemName = item.hasItemMeta() && item.getItemMeta().hasDisplayName() 
+                    ? item.getItemMeta().getDisplayName() 
+                    : item.getType().name();
+                results.merge(itemName, 1, Integer::sum);
+            } else {
+                results.merge("(空)", 1, Integer::sum);
+            }
+        }
+        
+        return results;
     }
     
     private ItemStack createItemFromEntry(LootEntry entry) {
-        return switch (entry.getType()) {
+        String type = entry.getType();
+        return switch (type) {
             case "item" -> createItemWithFunctions(entry);
-            case "loot_table" -> getRandomLoot(entry.getLootTableName());
-            case "special" -> createSpecialItem(entry.getSpecialItemName());
+            case "loot_table" -> getRandomLoot(stripNamespace(entry.getLootTableName()));
+            case "special", "special_item" -> createSpecialItem(entry.getSpecialItemName());
             case "potion" -> createPotion(entry);
             case "enchanted_book" -> createEnchantedBook();
             case "tag" -> createTagItem(entry);
             case "group" -> createGroupItem(entry);
             default -> null;
         };
+    }
+    
+    /**
+     * 去除战利品表名称中的命名空间前缀
+     * 例如 "newpillar:main" -> "main"
+     * "newpillar:fishing/fish" -> "fishing/fish"
+     */
+    private String stripNamespace(String name) {
+        if (name == null) return null;
+        int colonIndex = name.indexOf(':');
+        if (colonIndex >= 0) {
+            return name.substring(colonIndex + 1);
+        }
+        return name;
     }
     
     private ItemStack createItemWithFunctions(LootEntry entry) {
@@ -326,18 +496,31 @@ public class LootTableSystem {
         PotionMeta meta = (PotionMeta) potion.getItemMeta();
         
         if (meta != null && entry.getPotionEffect() != null) {
-            // 使用原版药水类型
-            try {
-                org.bukkit.potion.PotionType potionType = org.bukkit.potion.PotionType.valueOf(
-                    entry.getPotionEffect().toUpperCase());
-                meta.setBasePotionType(potionType);
-            } catch (IllegalArgumentException e) {
-                // 如果无法识别，使用自定义效果
-                PotionEffectType effectType = PotionEffectType.getByName(entry.getPotionEffect());
+            // 检查是否有自定义时长（非默认值600秒）
+            boolean hasCustomDuration = entry.getPotionDuration() != 600;
+            
+            if (hasCustomDuration) {
+                // 使用自定义时长和等级
+                PotionEffectType effectType = getPotionEffectType(entry.getPotionEffect());
                 if (effectType != null) {
                     meta.addCustomEffect(new PotionEffect(effectType, 
                         entry.getPotionDuration() * 20, 
                         entry.getPotionAmplifier()), true);
+                }
+            } else {
+                // 使用原版药水类型（默认时长）
+                try {
+                    org.bukkit.potion.PotionType potionType = org.bukkit.potion.PotionType.valueOf(
+                        entry.getPotionEffect().toUpperCase());
+                    meta.setBasePotionType(potionType);
+                } catch (IllegalArgumentException e) {
+                    // 如果无法识别，使用自定义效果
+                    PotionEffectType effectType = PotionEffectType.getByName(entry.getPotionEffect());
+                    if (effectType != null) {
+                        meta.addCustomEffect(new PotionEffect(effectType, 
+                            entry.getPotionDuration() * 20, 
+                            entry.getPotionAmplifier()), true);
+                    }
                 }
             }
             potion.setItemMeta(meta);
@@ -346,11 +529,97 @@ public class LootTableSystem {
         return potion;
     }
     
+    /**
+     * 将药水ID转换为PotionEffectType
+     */
+    private PotionEffectType getPotionEffectType(String potionId) {
+        // 原版药水类型到效果的映射
+        return switch (potionId.toLowerCase()) {
+            case "swiftness", "speed" -> PotionEffectType.SPEED;
+            case "slowness" -> PotionEffectType.SLOWNESS;
+            case "haste" -> PotionEffectType.HASTE;
+            case "mining_fatigue" -> PotionEffectType.MINING_FATIGUE;
+            case "strength" -> PotionEffectType.STRENGTH;
+            case "instant_health", "healing" -> PotionEffectType.INSTANT_HEALTH;
+            case "instant_damage", "harming" -> PotionEffectType.INSTANT_DAMAGE;
+            case "jump_boost", "leaping" -> PotionEffectType.JUMP_BOOST;
+            case "nausea" -> PotionEffectType.NAUSEA;
+            case "regeneration" -> PotionEffectType.REGENERATION;
+            case "resistance" -> PotionEffectType.RESISTANCE;
+            case "fire_resistance" -> PotionEffectType.FIRE_RESISTANCE;
+            case "water_breathing" -> PotionEffectType.WATER_BREATHING;
+            case "invisibility" -> PotionEffectType.INVISIBILITY;
+            case "blindness" -> PotionEffectType.BLINDNESS;
+            case "night_vision" -> PotionEffectType.NIGHT_VISION;
+            case "hunger" -> PotionEffectType.HUNGER;
+            case "weakness" -> PotionEffectType.WEAKNESS;
+            case "poison" -> PotionEffectType.POISON;
+            case "wither" -> PotionEffectType.WITHER;
+            case "health_boost" -> PotionEffectType.HEALTH_BOOST;
+            case "absorption" -> PotionEffectType.ABSORPTION;
+            case "saturation" -> PotionEffectType.SATURATION;
+            case "glowing" -> PotionEffectType.GLOWING;
+            case "levitation" -> PotionEffectType.LEVITATION;
+            case "luck" -> PotionEffectType.LUCK;
+            case "unluck" -> PotionEffectType.UNLUCK;
+            case "slow_falling" -> PotionEffectType.SLOW_FALLING;
+            case "conduit_power" -> PotionEffectType.CONDUIT_POWER;
+            case "dolphins_grace" -> PotionEffectType.DOLPHINS_GRACE;
+            case "bad_omen" -> PotionEffectType.BAD_OMEN;
+            case "hero_of_the_village" -> PotionEffectType.HERO_OF_THE_VILLAGE;
+            case "darkness" -> PotionEffectType.DARKNESS;
+            case "trial_omen" -> PotionEffectType.TRIAL_OMEN;
+            case "raid_omen" -> PotionEffectType.RAID_OMEN;
+            case "wind_charged" -> PotionEffectType.WIND_CHARGED;
+            case "weaving" -> PotionEffectType.WEAVING;
+            case "oozing" -> PotionEffectType.OOZING;
+            case "infested" -> PotionEffectType.INFESTED;
+            default -> PotionEffectType.getByName(potionId);
+        };
+    }
+    
     private ItemStack createTagItem(LootEntry entry) {
-        // tag 类型 - 从配置中加载物品列表
-        // 暂时使用 all_item 作为回退
-        plugin.getLogger().info("Tag 类型战利品表: " + entry.getTagName());
-        // 返回一个随机普通物品作为占位
+        String tagName = entry.getTagName();
+        
+        // 从缓存中获取标签物品列表
+        List<String> items = itemTags.get(tagName);
+        
+        if (items == null || items.isEmpty()) {
+            plugin.getLogger().warning("物品标签不存在或为空: " + tagName);
+            // 回退：返回随机原版物品
+            return createRandomVanillaItem();
+        }
+        
+        // 随机选择一个物品
+        String itemName = items.get(random.nextInt(items.size()));
+        
+        // 解析物品名称（支持命名空间）
+        String materialName = itemName;
+        if (itemName.contains(":")) {
+            materialName = itemName.substring(itemName.indexOf(":") + 1);
+        }
+        
+        // 转换为 Material
+        Material material = Material.matchMaterial(materialName);
+        
+        if (material == null) {
+            plugin.getLogger().warning("无法识别物品: " + itemName + " (来自标签: " + tagName + ")");
+            // 尝试再次随机选择
+            return createRandomVanillaItem();
+        }
+        
+        if (!material.isItem()) {
+            plugin.getLogger().warning("不是有效物品: " + itemName);
+            return createRandomVanillaItem();
+        }
+        
+        return new ItemStack(material);
+    }
+    
+    /**
+     * 创建随机原版物品（作为回退）
+     */
+    private ItemStack createRandomVanillaItem() {
         Material[] materials = Material.values();
         Material randomMaterial = materials[random.nextInt(materials.length)];
         while (!randomMaterial.isItem()) {
@@ -554,7 +823,36 @@ public class LootTableSystem {
     }
     
     private ItemStack createSpecialItem(String name) {
+        // 首先尝试从 SpecialItemManager 创建（包含正确的附魔和属性）
+        SpecialItemManager.SpecialItemType type = specialItemManager.getSpecialItemTypeById(name);
+        if (type != null) {
+            return specialItemManager.createSpecialItem(type);
+        }
+        
+        // 回退到旧的创建器（用于兼容性）
         SpecialItemCreator creator = specialItems.get(name.toLowerCase());
+        if (creator != null) {
+            return creator.create();
+        }
+        return null;
+    }
+    
+    /**
+     * 通过ID创建特殊物品（公共方法，供外部调用）
+     * @param id 特殊物品ID（如 "knockback_stick"）
+     * @return 特殊物品ItemStack，如果ID无效则返回null
+     */
+    public ItemStack createSpecialItemById(String id) {
+        if (id == null) return null;
+        
+        // 首先尝试从 SpecialItemManager 创建
+        SpecialItemManager.SpecialItemType type = specialItemManager.getSpecialItemTypeById(id);
+        if (type != null) {
+            return specialItemManager.createSpecialItem(type);
+        }
+        
+        // 回退到旧的创建器
+        SpecialItemCreator creator = specialItems.get(id.toLowerCase());
         if (creator != null) {
             return creator.create();
         }
@@ -635,27 +933,13 @@ public class LootTableSystem {
     }
     
     private ItemStack createRocketBoots() {
-        ItemStack item = new ItemStack(Material.LEATHER_BOOTS);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§4§l火箭靴");
-            meta.setLore(Arrays.asList("§7让你飞得更高！", "§e穿上后生效"));
-            setCustomItemId(meta, "rocket_boots");
-            item.setItemMeta(meta);
-        }
-        return item;
+        // 使用 SpecialItemManager 创建以保持一致性
+        return specialItemManager.createSpecialItem(SpecialItemManager.SpecialItemType.ROCKET_BOOTS);
     }
-    
+
     private ItemStack createRunningShoes() {
-        ItemStack item = new ItemStack(Material.GOLDEN_BOOTS);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§6§l跑鞋");
-            meta.setLore(Arrays.asList("§7跑得更快！", "§e穿上后生效"));
-            setCustomItemId(meta, "running_shoes");
-            item.setItemMeta(meta);
-        }
-        return item;
+        // 使用 SpecialItemManager 创建以保持一致性
+        return specialItemManager.createSpecialItem(SpecialItemManager.SpecialItemType.RUNNING_SHOES);
     }
     
     private ItemStack createWitchApple() {
@@ -773,7 +1057,162 @@ public class LootTableSystem {
     private ItemStack createLuckyBlock() {
         return plugin.getLuckyBlockSystem().createLuckyBlock();
     }
-    
+
+    // 新增的特殊物品创建方法
+    private ItemStack createSpecialBow() {
+        ItemStack item = new ItemStack(Material.BOW);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§6§l神弓");
+            meta.setLore(Arrays.asList("§7力量5、耐久3、冲击2、破甲5", "§e右键使用"));
+            setCustomItemId(meta, "special_bow");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createSpecialCrossbow() {
+        ItemStack item = new ItemStack(Material.CROSSBOW);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§6§l神弩");
+            meta.setLore(Arrays.asList("§7快速装填3、耐久3、多重射击3、破甲5", "§e右键使用"));
+            setCustomItemId(meta, "special_crossbow");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createLifeStealSword() {
+        ItemStack item = new ItemStack(Material.GOLDEN_SWORD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§c§l生命偷取剑");
+            meta.setLore(Arrays.asList("§7大血条转移术", "§7造成伤害的50%转化为生命值", "§e右键使用"));
+            setCustomItemId(meta, "life_steal_sword");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createPoisonDagger() {
+        ItemStack item = new ItemStack(Material.IRON_SWORD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§a§l剧毒匕首");
+            meta.setLore(Arrays.asList("§7是的，这剑有毒", "§7攻击附加3秒中毒效果", "§e右键使用"));
+            setCustomItemId(meta, "poison_dagger");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createShieldGenerator() {
+        ItemStack item = new ItemStack(Material.SHIELD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§b§l护盾发生器");
+            meta.setLore(Arrays.asList("§7安如磐石", "§7冷却时间：1分钟", "§7右键生成5秒可吸收8点生命值的护盾", "§e右键使用"));
+            setCustomItemId(meta, "shield_generator");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createExCurryStick() {
+        ItemStack item = new ItemStack(Material.DIAMOND_SWORD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§e§l『EX咖喱棒』");
+            meta.setLore(Arrays.asList("§7右键召唤大光柱", "§7光柱倒下造成伤害并击退", "§7冷却时间：90s", "§7伤害：6-13", "§e右键使用"));
+            setCustomItemId(meta, "ex_curry_stick");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createTheWorld() {
+        ItemStack item = new ItemStack(Material.BELL);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§e§l砸瓦鲁多");
+            meta.setLore(Arrays.asList("§7The World!!!", "§7冷却时间：1分30秒", "§7右键冻结周围玩家9秒", "§e右键使用"));
+            setCustomItemId(meta, "the_world");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createRussianRoulette() {
+        ItemStack item = new ItemStack(Material.IRON_HORSE_ARMOR);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§4§l俄罗斯轮盘枪");
+            meta.setLore(Arrays.asList("§7试试你的运气", "§7右键打开选择界面", "§7选择子弹数量后开枪", "§71-6颗子弹，奖励递增", "§76颗子弹可获得特殊成就", "§e右键使用"));
+            setCustomItemId(meta, "russian_roulette");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createSpear() {
+        ItemStack item = new ItemStack(Material.GOLDEN_SPEAR);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§6§l长♂矛");
+            meta.setLore(Arrays.asList("§7一把锋利的长矛", "§e右键使用"));
+            setCustomItemId(meta, "spear");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createBigFlameRod() {
+        ItemStack item = new ItemStack(Material.BLAZE_ROD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§c§l大火杆");
+            meta.setLore(Arrays.asList("§7燃烧吧！", "§e右键使用"));
+            setCustomItemId(meta, "big_flame_rod");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createGravityBoots() {
+        ItemStack item = new ItemStack(Material.NETHERITE_BOOTS);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§5§l重力靴");
+            meta.setLore(Arrays.asList("§7控制重力！", "§e右键使用"));
+            setCustomItemId(meta, "gravity_boots");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createInvisibleSand() {
+        // 使用 SpecialItemManager 创建以保持一致性
+        return specialItemManager.createSpecialItem(SpecialItemManager.SpecialItemType.INVISIBLE_SAND);
+    }
+
+    private ItemStack createFeather() {
+        // 使用 SpecialItemManager 创建以保持一致性
+        return specialItemManager.createSpecialItem(SpecialItemManager.SpecialItemType.FEATHER);
+    }
+
+    private ItemStack createSpecialIronSword() {
+        ItemStack item = new ItemStack(Material.IRON_SWORD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§7§l铁剑");
+            meta.setLore(Arrays.asList("§7特殊的铁剑", "§e右键使用"));
+            setCustomItemId(meta, "iron_sword");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
     private void setCustomItemId(ItemMeta meta, String id) {
         PersistentDataContainer container = meta.getPersistentDataContainer();
         NamespacedKey key = new NamespacedKey(plugin, "item_id");
@@ -781,14 +1220,60 @@ public class LootTableSystem {
     }
     
     private void createDefaultLootTables(File dir) {
-        // 创建主战利品表
-        createMainLootTable(dir);
-        // 创建普通物品表
-        createAllItemsLootTable(dir);
-        // 创建药水表
-        createPotionLootTable(dir);
-        // 创建特殊物品表
-        createSpecialLootTable(dir);
+        // 从插件资源复制战利品表文件
+        copyLootTableFromResource(dir, "main.json");
+        copyLootTableFromResource(dir, "all_item.json");
+        copyLootTableFromResource(dir, "potion.json");
+        copyLootTableFromResource(dir, "sea.json");
+        copyLootTableFromResource(dir, "common.json");
+        copyLootTableFromResource(dir, "rare.json");
+        copyLootTableFromResource(dir, "epic.json");
+        copyLootTableFromResource(dir, "legendary.json");
+        copyLootTableFromResource(dir, "enchanted_book.json");
+        copyLootTableFromResource(dir, "moon.json");
+        
+        // 复制子目录
+        File specialDir = new File(dir, "special");
+        specialDir.mkdirs();
+        copyLootTableFromResource(specialDir, "special/all.json");
+        copyLootTableFromResource(specialDir, "special/item.json");
+        
+        File fishingDir = new File(dir, "fishing");
+        fishingDir.mkdirs();
+        copyLootTableFromResource(fishingDir, "fishing/fish.json");
+        copyLootTableFromResource(fishingDir, "fishing/junk.json");
+        copyLootTableFromResource(fishingDir, "fishing/treasure.json");
+        
+        File luckyBlockDir = new File(dir, "lucky_block");
+        luckyBlockDir.mkdirs();
+        copyLootTableFromResource(luckyBlockDir, "lucky_block/main.json");
+    }
+    
+    private void copyLootTableFromResource(File dir, String resourcePath) {
+        String fileName = resourcePath.substring(resourcePath.lastIndexOf('/') + 1);
+        File targetFile = new File(dir, fileName);
+        
+        // 如果文件已存在，不覆盖（保留用户自定义）
+        if (targetFile.exists()) {
+            return;
+        }
+        
+        try (InputStream is = plugin.getResource("loot_tables/" + resourcePath)) {
+            if (is != null) {
+                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                    byte[] buffer = new byte[1024];
+                    int length;
+                    while ((length = is.read(buffer)) > 0) {
+                        fos.write(buffer, 0, length);
+                    }
+                }
+                plugin.getLogger().info("已复制战利品表: " + resourcePath);
+            } else {
+                plugin.getLogger().warning("无法从资源加载战利品表: " + resourcePath);
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("复制战利品表失败: " + resourcePath + " - " + e.getMessage());
+        }
     }
     
     private void createMainLootTable(File dir) {
@@ -925,7 +1410,126 @@ public class LootTableSystem {
         specialDir.mkdirs();
         saveLootTable(specialDir, "all", table);
     }
-    
+
+    private void createSeaLootTable(File dir) {
+        JsonObject table = new JsonObject();
+        JsonArray pools = new JsonArray();
+
+        JsonObject pool = new JsonObject();
+        pool.addProperty("rolls", 1);
+
+        JsonArray entries = new JsonArray();
+
+        // 80% 几率从主战利品表获取
+        JsonObject mainEntry = new JsonObject();
+        mainEntry.addProperty("type", "loot_table");
+        mainEntry.addProperty("value", "newpillar:main");
+        mainEntry.addProperty("weight", 80);
+        entries.add(mainEntry);
+
+        // 20% 几率从钓鱼专属表获取
+        JsonObject fishingGroup = new JsonObject();
+        fishingGroup.addProperty("type", "group");
+        fishingGroup.addProperty("weight", 20);
+
+        JsonArray fishingEntries = new JsonArray();
+
+        // 鱼类 8
+        JsonObject fishEntry = new JsonObject();
+        fishEntry.addProperty("type", "loot_table");
+        fishEntry.addProperty("value", "newpillar:fishing/fish");
+        fishEntry.addProperty("weight", 8);
+        fishingEntries.add(fishEntry);
+
+        // 垃圾 12
+        JsonObject junkEntry = new JsonObject();
+        junkEntry.addProperty("type", "loot_table");
+        junkEntry.addProperty("value", "newpillar:fishing/junk");
+        junkEntry.addProperty("weight", 12);
+        fishingEntries.add(junkEntry);
+
+        // 宝藏 5
+        JsonObject treasureEntry = new JsonObject();
+        treasureEntry.addProperty("type", "loot_table");
+        treasureEntry.addProperty("value", "newpillar:fishing/treasure");
+        treasureEntry.addProperty("weight", 5);
+        fishingEntries.add(treasureEntry);
+
+        fishingGroup.add("entries", fishingEntries);
+        entries.add(fishingGroup);
+
+        pool.add("entries", entries);
+        pools.add(pool);
+        table.add("pools", pools);
+
+        saveLootTable(dir, "sea", table);
+
+        // 创建钓鱼子表
+        createFishingSubTables(dir);
+    }
+
+    private void createFishingSubTables(File dir) {
+        // 创建钓鱼目录
+        File fishingDir = new File(dir, "fishing");
+        fishingDir.mkdirs();
+
+        // 鱼类表 - 使用完整的 minecraft: 命名空间
+        JsonObject fishTable = new JsonObject();
+        JsonArray fishPools = new JsonArray();
+        JsonObject fishPool = new JsonObject();
+        fishPool.addProperty("rolls", 1);
+        JsonArray fishEntries = new JsonArray();
+        addItemEntry(fishEntries, "minecraft:cod", 60);
+        addItemEntry(fishEntries, "minecraft:salmon", 25);
+        addItemEntry(fishEntries, "minecraft:tropical_fish", 10);
+        addItemEntry(fishEntries, "minecraft:pufferfish", 5);
+        fishPool.add("entries", fishEntries);
+        fishPools.add(fishPool);
+        fishTable.add("pools", fishPools);
+        saveLootTable(fishingDir, "fish", fishTable);
+
+        // 垃圾表 - 使用完整的 minecraft: 命名空间
+        JsonObject junkTable = new JsonObject();
+        JsonArray junkPools = new JsonArray();
+        JsonObject junkPool = new JsonObject();
+        junkPool.addProperty("rolls", 1);
+        JsonArray junkEntries = new JsonArray();
+        addItemEntry(junkEntries, "minecraft:lily_pad", 17);
+        addItemEntry(junkEntries, "minecraft:bowl", 10);
+        addItemEntry(junkEntries, "minecraft:fishing_rod", 2);
+        addItemEntry(junkEntries, "minecraft:leather", 10);
+        addItemEntry(junkEntries, "minecraft:leather_boots", 10);
+        addItemEntry(junkEntries, "minecraft:rotten_flesh", 10);
+        addItemEntry(junkEntries, "minecraft:stick", 5);
+        addItemEntry(junkEntries, "minecraft:string", 5);
+        addItemEntry(junkEntries, "minecraft:potion", 10);
+        addItemEntry(junkEntries, "minecraft:bone", 10);
+        addItemEntry(junkEntries, "minecraft:tripwire_hook", 10);
+        addItemEntry(junkEntries, "minecraft:ink_sac", 1);
+        junkPool.add("entries", junkEntries);
+        junkPools.add(junkPool);
+        junkTable.add("pools", junkPools);
+        saveLootTable(fishingDir, "junk", junkTable);
+
+        // 宝藏表 - 使用完整的 minecraft: 命名空间
+        JsonObject treasureTable = new JsonObject();
+        JsonArray treasurePools = new JsonArray();
+        JsonObject treasurePool = new JsonObject();
+        treasurePool.addProperty("rolls", 1);
+        JsonArray treasureEntries = new JsonArray();
+        addItemEntry(treasureEntries, "minecraft:bow", 17);
+        addItemEntry(treasureEntries, "minecraft:enchanted_book", 10);
+        addItemEntry(treasureEntries, "minecraft:fishing_rod", 10);
+        addItemEntry(treasureEntries, "minecraft:name_tag", 10);
+        addItemEntry(treasureEntries, "minecraft:saddle", 10);
+        addItemEntry(treasureEntries, "minecraft:nautilus_shell", 10);
+        addItemEntry(treasureEntries, "minecraft:heart_of_the_sea", 3);
+        treasurePool.add("entries", treasureEntries);
+        treasurePools.add(treasurePool);
+        treasureTable.add("pools", treasurePools);
+        saveLootTable(fishingDir, "treasure", treasureTable);
+    }
+
     private void addItemEntry(JsonArray entries, String name, int weight) {
         JsonObject entry = new JsonObject();
         entry.addProperty("type", "item");

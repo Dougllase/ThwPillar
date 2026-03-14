@@ -11,7 +11,14 @@ import com.newpillar.game.PlayerData;
 import com.newpillar.game.GameManager;
 
 import com.newpillar.NewPillar;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -22,11 +29,13 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 public class ItemSystem {
    private final NewPillar plugin;
    private final GameManager gameManager;
    private final Random random = new Random();
+   private final Gson gson = new Gson();
    private ScheduledTask itemTask;
    private int lootTimer = 0;
    private final List<ItemSystem.LootEntry> lootTable = new ArrayList<>();
@@ -34,7 +43,7 @@ public class ItemSystem {
    public ItemSystem(NewPillar plugin, GameManager gameManager) {
       this.plugin = plugin;
       this.gameManager = gameManager;
-      this.initLootTable();
+      this.initLootTableFromDataPack();
    }
 
    private void initLootTable() {
@@ -501,6 +510,143 @@ public class ItemSystem {
       this.plugin.getLogger().info("战利品表已初始化，共 " + this.lootTable.size() + " 种物品");
    }
 
+   /**
+    * 从数据包加载物品标签
+    * 支持从插件resource自动创建数据包文件
+    */
+   private void initLootTableFromDataPack() {
+      // 确保数据包文件存在（从resource复制）
+      this.extractLootTableFromResource("loot_tables/all_item.json");
+      
+      // 尝试从插件数据文件夹加载物品标签
+      File itemTagFile = new File(this.plugin.getDataFolder(), "loot_tables/all_item.json");
+      if (itemTagFile.exists()) {
+         try (FileReader reader = new FileReader(itemTagFile)) {
+            JsonObject json = gson.fromJson(reader, JsonObject.class);
+            if (json.has("pools")) {
+               JsonArray pools = json.getAsJsonArray("pools");
+               int loadedCount = 0;
+               
+               for (int p = 0; p < pools.size(); p++) {
+                  JsonObject pool = pools.get(p).getAsJsonObject();
+                  if (pool.has("entries")) {
+                     JsonArray entries = pool.getAsJsonArray("entries");
+                     for (int e = 0; e < entries.size(); e++) {
+                        JsonObject entry = entries.get(e).getAsJsonObject();
+                        
+                        // 处理不同类型的条目
+                        String type = entry.has("type") ? entry.get("type").getAsString() : "";
+                        
+                        if ("tag".equals(type) && entry.has("name")) {
+                           // 物品标签类型 - 需要加载对应的标签文件
+                           String tagName = entry.get("name").getAsString();
+                           loadedCount += this.loadItemsFromTag(tagName);
+                        } else if ("item".equals(type) && entry.has("name")) {
+                           // 单个物品类型
+                           String itemName = entry.get("name").getAsString();
+                           Material material = this.parseMaterial(itemName);
+                           if (material != null) {
+                              int weight = entry.has("weight") ? entry.get("weight").getAsInt() : 10;
+                              this.addLoot(material, weight, 1, 1);
+                              loadedCount++;
+                           }
+                        }
+                     }
+                  }
+               }
+               
+               if (loadedCount > 0) {
+                  this.plugin.getLogger().info("[ItemSystem] 从数据包加载了 " + loadedCount + " 种物品");
+                  return;
+               }
+            }
+         } catch (IOException e) {
+            this.plugin.getLogger().warning("[ItemSystem] 无法从数据包加载物品: " + e.getMessage());
+         }
+      }
+      
+      // 如果数据包加载失败，使用硬编码
+      this.plugin.getLogger().info("[ItemSystem] 数据包加载失败，使用硬编码物品表");
+      this.initLootTable();
+   }
+   
+   /**
+    * 从物品标签加载物品
+    */
+   private int loadItemsFromTag(String tagName) {
+      int count = 0;
+      // 将标签名转换为文件路径
+      // yw-pillar:item -> tags/item/item.json
+      if (tagName.contains(":")) {
+         tagName = tagName.split(":")[1];
+      }
+      
+      File tagFile = new File(this.plugin.getDataFolder(), "tags/item/" + tagName + ".json");
+      if (!tagFile.exists()) {
+         // 尝试从resource提取
+         this.extractLootTableFromResource("tags/item/" + tagName + ".json");
+      }
+      
+      if (tagFile.exists()) {
+         try (FileReader reader = new FileReader(tagFile)) {
+            JsonObject json = gson.fromJson(reader, JsonObject.class);
+            if (json.has("values")) {
+               JsonArray values = json.getAsJsonArray("values");
+               for (int i = 0; i < values.size(); i++) {
+                  String itemName = values.get(i).getAsString();
+                  Material material = this.parseMaterial(itemName);
+                  if (material != null) {
+                     this.addLoot(material, 10, 1, 1);
+                     count++;
+                  }
+               }
+            }
+         } catch (IOException e) {
+            this.plugin.getLogger().warning("[ItemSystem] 无法加载物品标签 " + tagName + ": " + e.getMessage());
+         }
+      }
+      return count;
+   }
+   
+   /**
+    * 解析物品名称
+    */
+   private Material parseMaterial(String itemName) {
+      // 移除命名空间前缀
+      if (itemName.contains(":")) {
+         itemName = itemName.split(":")[1];
+      }
+      
+      Material material = Material.getMaterial(itemName.toUpperCase());
+      if (material == null) {
+         material = Material.matchMaterial(itemName);
+      }
+      return material;
+   }
+   
+   /**
+    * 从插件resource提取战利品表文件
+    */
+   private void extractLootTableFromResource(String resourcePath) {
+      File targetFile = new File(this.plugin.getDataFolder(), resourcePath);
+      if (targetFile.exists()) {
+         return; // 已存在，不需要提取
+      }
+      
+      // 确保父目录存在
+      targetFile.getParentFile().mkdirs();
+      
+      // 从resource复制
+      try (InputStream is = this.plugin.getResource(resourcePath)) {
+         if (is != null) {
+            java.nio.file.Files.copy(is, targetFile.toPath());
+            this.plugin.getLogger().info("[ItemSystem] 已从resource提取: " + resourcePath);
+         }
+      } catch (IOException e) {
+         this.plugin.getLogger().warning("[ItemSystem] 无法提取 " + resourcePath + ": " + e.getMessage());
+      }
+   }
+
    private void addLoot(Material material, int weight, int minAmount, int maxAmount) {
       if (material != null) {
          this.lootTable.add(new ItemSystem.LootEntry(material, weight, minAmount, maxAmount));
@@ -547,15 +693,42 @@ public class ItemSystem {
       }
    }
 
+   /**
+    * 给予玩家物品
+    * 已统一使用 LootTableSystem 的 main 战利品表
+    * 如果薛定谔的猫机制启用，则使用预生成的物品队列
+    */
    private void giveItemsToPlayers() {
       for (UUID uuid : this.gameManager.getAlivePlayers()) {
          Player player = Bukkit.getPlayer(uuid);
          if (player != null && player.isOnline()) {
             PlayerData data = this.gameManager.getPlayerData(uuid);
             if (data != null && data.getState() == PlayerState.INGAME) {
-               ItemSystem.LootEntry entry = this.getRandomLootEntry();
-               if (entry != null) {
-                  ItemStack stack = new ItemStack(entry.material, 1);
+               ItemStack stack;
+               
+               // 检查薛定谔的猫机制是否启用
+               if (this.plugin.getSchrodingerCatManager().isEnabled()) {
+                  // 从薛定谔的猫机制获取下一个物品
+                  stack = this.plugin.getSchrodingerCatManager().getNextItem();
+               } else {
+                  // 使用配置的随机池获取战利品
+                  String mainPool = plugin.getConfig().getString("loot_pools.main_pool", "main");
+                  stack = this.plugin.getLootTableSystem().getRandomLoot(mainPool);
+               }
+               
+               if (stack != null) {
+                  // 确保数量为1（定时给予的物品每次只给1个）
+                  stack.setAmount(1);
+
+                  // 检查是否是长矛，如果是则触发成就
+                  ItemMeta meta = stack.getItemMeta();
+                  if (meta != null && meta.hasDisplayName()) {
+                     String displayName = meta.getDisplayName();
+                     if (displayName.contains("长♂矛")) {
+                        plugin.getAchievementSystem().grantItemAchievement(player, "spear");
+                     }
+                  }
+
                   Bukkit.getRegionScheduler().execute(this.plugin, player.getLocation(), () -> {
                      player.getInventory().addItem(new ItemStack[]{stack});
                   });
@@ -595,15 +768,13 @@ public class ItemSystem {
 
    /**
     * 获取随机战利品（用于海洋地图钓鱼等其他系统）
+    * 使用配置的 main_pool 随机池
     * @return 随机的ItemStack，如果战利品表为空则返回null
     */
    public ItemStack getRandomLoot() {
-      LootEntry entry = this.getRandomLootEntry();
-      if (entry != null) {
-         int amount = entry.getRandomAmount(this.random);
-         return new ItemStack(entry.material, amount);
-      }
-      return null;
+      // 使用配置的随机池获取战利品
+      String mainPool = plugin.getConfig().getString("loot_pools.main_pool", "main");
+      return this.plugin.getLootTableSystem().getRandomLoot(mainPool);
    }
 
    private static class LootEntry {

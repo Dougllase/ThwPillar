@@ -15,12 +15,11 @@
         },
         {
           "type": "loot_table",
-          "value": "newpillar:special:all",
+          "value": "newpillar:special/all",
           "weight": 2
         },
         {
-          "type": "loot_table",
-          "value": "newpillar:enchanted_book",
+          "type": "enchanted_book",
           "weight": 1
         }
       ]
