@@ -1,0 +1,303 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "night_vision",
+              "duration": 1200,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "invisibility",
+              "duration": 600,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "leaping",
+              "duration": 600,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "fire_resistance",
+              "duration": 1200,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "swiftness",
+              "duration": 600,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "water"
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "children": [
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "healing"
+                }
+              ],
+              "weight": 6
+            },
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "strong_healing"
+                }
+              ],
+              "weight": 4
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "children": [
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "regeneration",
+                  "duration": 200,
+                  "amplifier": 0
+                }
+              ],
+              "weight": 6
+            },
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "long_regeneration",
+                  "duration": 400,
+                  "amplifier": 0
+                }
+              ],
+              "weight": 4
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "slowness",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "children": [
+            {
+              "type": "item",
+              "name": "splash_potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "harming"
+                }
+              ],
+              "weight": 8
+            },
+            {
+              "type": "item",
+              "name": "splash_potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "strong_harming"
+                }
+              ],
+              "weight": 2
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "children": [
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "strength",
+                  "duration": 600,
+                  "amplifier": 0
+                }
+              ],
+              "weight": 8
+            },
+            {
+              "type": "item",
+              "name": "potion",
+              "functions": [
+                {
+                  "function": "set_potion",
+                  "id": "long_strength",
+                  "duration": 1200,
+                  "amplifier": 0
+                }
+              ],
+              "weight": 2
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "turtle_master",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "slow_falling",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "poison",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "weakness",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "wind_charged",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "weaving",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "oozing",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        },
+        {
+          "type": "item",
+          "name": "splash_potion",
+          "functions": [
+            {
+              "function": "set_potion",
+              "id": "infested",
+              "duration": 300,
+              "amplifier": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

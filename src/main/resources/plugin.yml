@@ -1,0 +1,30 @@
+name: ThwNewPillar
+version: '${project.version}'
+main: com.newpillar.NewPillar
+api-version: '1.21'
+folia-supported: true
+author: Thw
+
+description: A fresh start of Lucky Pillar game based on data pack
+
+commands:
+  thwp:
+    description: ThwNewPillar game commands
+    usage: /<command> [join|leave|start|stop|status]
+    aliases: [np]
+  vote:
+    description: Vote for game rules
+    usage: /vote <number>
+  schrodinger:
+    description: Schrodinger's cat mechanism commands
+    usage: /schrodinger <toggle|insight|status|item|event|clearhistory>
+    aliases: [cat]
+  reward:
+    description: 查询金币获取状态
+    usage: /reward
+    aliases: [rw]
+
+permissions:
+  newpillar.admin:
+    description: Admin permission for ThwNewPillar
+    default: op

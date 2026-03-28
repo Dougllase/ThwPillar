@@ -1,0 +1,19 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "loot_table",
+          "value": "main",
+          "weight": 60
+        },
+        {
+          "type": "special",
+          "name": "lucky_chest",
+          "weight": 40
+        }
+      ]
+    }
+  ]
+}

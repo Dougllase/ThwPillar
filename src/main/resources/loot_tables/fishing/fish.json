@@ -1,0 +1,29 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "item",
+          "name": "COD",
+          "weight": 60
+        },
+        {
+          "type": "item",
+          "name": "SALMON",
+          "weight": 25
+        },
+        {
+          "type": "item",
+          "name": "TROPICAL_FISH",
+          "weight": 2
+        },
+        {
+          "type": "item",
+          "name": "PUFFERFISH",
+          "weight": 13
+        }
+      ]
+    }
+  ]
+}

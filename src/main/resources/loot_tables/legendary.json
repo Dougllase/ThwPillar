@@ -1,0 +1,10 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {"type": "loot_table", "value": "newpillar:special/all", "weight": 100}
+      ]
+    }
+  ]
+}

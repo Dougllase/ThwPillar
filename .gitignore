@@ -1,0 +1,32 @@
+# 编译输出
+target/
+*.class
+
+# IDE文件
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# Maven
+dependency-reduced-pom.xml
+
+# 临时文件
+*.tmp
+*.temp
+
+# 本地配置文件（包含敏感信息）
+# 注意：生产环境中不应提交真实配置文件
+# 但这里我们使用占位符，所以可以提交模板
+
+# 测试文件
+commit_msg.txt

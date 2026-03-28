@@ -1,0 +1,159 @@
+# ThwNewPillar 配置文件
+# 这是示例配置文件，请根据实际情况修改
+
+# 服务器名称设置 (显示在侧边栏底部)
+server:
+  # 服务器显示名称 (支持颜色代码 §)
+  # 示例: "§d§l我的服务器" = 粉色加粗"我的服务器"
+  name: "§d§l幸运之柱"
+  # 服务器名称颜色代码
+  color: "§d"
+  # 是否加粗显示
+  bold: true
+
+# 调试模式
+debug:
+  # 是否启用详细事件日志输出
+  enabled: false
+  # 是否输出事件系统详细日志
+  event_logs: false
+
+# MySQL数据库配置
+# 请修改为你的数据库信息
+mysql:
+  # 数据库主机地址
+  host: localhost
+  # 数据库端口
+  port: 3306
+  # 数据库名称
+  database: lucky_pillar
+  # 数据库用户名
+  username: root
+  # 数据库密码 (必须修改!)
+  password: your_password_here
+
+# 计时器设置 (秒)
+timers:
+  # 物品发放间隔
+  loot_time: 10
+  # 事件触发间隔
+  event_time: 60
+  # 游戏开始倒计时
+  begin_time: 10
+
+# 边界收缩设置
+border:
+  # 初始边界大小 (40-60格范围)
+  initial_size: 60
+  # 停止收缩的边界大小（小于此值进入平台崩溃）
+  min_size: 10
+  # 收缩动画持续时间（秒）
+  shrink_duration: 30
+  # 全缩圈流程时长（分钟），默认15分钟
+  total_shrink_duration_minutes: 15
+  # 目标收缩轮数（3-4轮）
+  target_rounds: 4
+
+# 游戏设置
+game:
+  # 是否启用自动开始功能
+  auto-start-enabled: true
+  # 自动开始所需的最少玩家数量
+  auto-start-min-players: 2
+
+# 大厅设置
+# 玩家等待游戏的位置
+lobby:
+  x: 100
+  y: 4
+  z: 100
+
+# 柱子设置
+pillar:
+  # 柱子高度
+  height: 39
+  # 笼子高度
+  cage_height: 3
+
+# 地图区域设置 (游戏区域)
+map_region:
+  # 中心点 (游戏区域中心)
+  center_x: 0
+  center_y: 0
+  center_z: 0
+  # 区域半径
+  radius: 50
+  # 最低Y坐标
+  min_y: -64
+  # 最高Y坐标
+  max_y: 320
+
+# 柱子倒塌设置
+collapse:
+  # 是否启用柱子倒塌
+  enabled: true
+  # 游戏开始后多久开始倒塌 (秒)
+  start_delay: 60
+  # 倒塌间隔 (秒)
+  interval: 10
+  # 每次倒塌破坏的方块数
+  blocks_per_tick: 3
+
+# 随机池（战利品表）配置
+# 以下配置定义了各游戏模式使用的随机池名称
+# 修改这些值可以切换不同的物品池
+# 使用 /np loottest <池名> [次数] 指令测试随机池
+loot_pools:
+  # 定时给予物品的随机池（主物品池）
+  # 用于: 定时给予玩家物品、部分事件奖励
+  # 默认: main
+  main_pool: "main"
+  
+  # 普通物品随机池
+  # 用于: 俄罗斯轮盘枪1-2颗子弹奖励
+  # 默认: common
+  common_pool: "common"
+  
+  # 稀有物品随机池（高级装备）
+  # 用于: 俄罗斯轮盘枪3颗子弹奖励
+  # 包含: 钻石装备、下界合金装备、弓弩/箭矢等战斗物品
+  # 默认: rare
+  rare_pool: "rare"
+  
+  # 史诗物品随机池（特殊物品）
+  # 用于: 俄罗斯轮盘枪4-5颗子弹奖励
+  # 默认: epic
+  epic_pool: "epic"
+  
+  # 传说物品随机池
+  # 用于: 俄罗斯轮盘枪6颗子弹奖励（如果存活）
+  # 默认: legendary
+  legendary_pool: "legendary"
+  
+  # 海洋钓鱼随机池
+  # 用于: 海洋地图钓鱼系统
+  # 默认: sea
+  sea_fishing_pool: "sea"
+  
+  # 钓鱼系统子池（由sea池引用）
+  # 鱼类随机池
+  fishing_fish_pool: "fishing/fish"
+  # 垃圾随机池
+  fishing_junk_pool: "fishing/junk"
+  # 宝藏随机池
+  fishing_treasure_pool: "fishing/treasure"
+  
+  # 药水随机池
+  # 用于: 部分事件和奖励
+  # 默认: potion
+  potion_pool: "potion"
+  
+  # 所有物品汇总池
+  # 用于: 某些特殊事件和调试
+  # 默认: all_item
+  all_item_pool: "all_item"
+  
+  # 特殊物品池（包含所有特殊物品）
+  # 用于: 特殊物品获取
+  # 默认: special/all
+  special_pool: "special/all"

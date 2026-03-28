@@ -1,0 +1,28 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "loot_table",
+          "value": "newpillar:all_item",
+          "weight": 96
+        },
+        {
+          "type": "loot_table",
+          "value": "newpillar:potion",
+          "weight": 1
+        },
+        {
+          "type": "loot_table",
+          "value": "newpillar:special/all",
+          "weight": 2
+        },
+        {
+          "type": "enchanted_book",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

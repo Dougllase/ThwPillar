@@ -1,0 +1,119 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "special_item",
+          "name": "knockback_stick",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "witch_apple",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "bruce",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "godly_pickaxe",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "spear",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "clock",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "meow_axe",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "big_fire_stick",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "yanpai",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "blue_screen",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "fly_boat",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "hongbao",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "hypnosis_app",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "invisible_sand",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "feather",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "rocket_boots",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "running_shoes",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "fly_mace",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "bones_without_chicken_feet",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "iron_sword",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "pixie",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "spawner",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

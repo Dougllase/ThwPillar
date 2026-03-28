@@ -1,0 +1,155 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "special_item",
+          "name": "knockback_stick",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "witch_apple",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "bruce",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "godly_pickaxe",
+          "weight": 2
+        },
+        {
+          "type": "special_item",
+          "name": "spear",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "clock",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "meow_axe",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "big_flame_rod",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "yanpai",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "blue_screen",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "gravity_boots",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "hongbao",
+          "weight": 8
+        },
+        {
+          "type": "special_item",
+          "name": "hypnosis_app",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "invisible_sand",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "feather",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "rocket_boots",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "running_shoes",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "fly_mace",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "bones_without_chicken_feet",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "iron_sword",
+          "weight": 5
+        },
+        {
+          "type": "special_item",
+          "name": "pixie",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "spawner",
+          "weight": 1
+        },
+        {
+          "type": "special_item",
+          "name": "special_bow",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "special_crossbow",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "life_steal_sword",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "poison_dagger",
+          "weight": 4
+        },
+        {
+          "type": "special_item",
+          "name": "shield_generator",
+          "weight": 3
+        },
+        {
+          "type": "special_item",
+          "name": "ex_curry_stick",
+          "weight": 2
+        },
+        {
+          "type": "special_item",
+          "name": "the_world",
+          "weight": 2
+        }
+        // 俄罗斯轮盘枪已禁用 - russian_roulette
+      ]
+    }
+  ]
+}

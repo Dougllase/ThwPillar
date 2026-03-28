@@ -1,0 +1,39 @@
+{
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "item",
+          "name": "book",
+          "functions": [
+            {
+              "function": "enchant_randomly"
+            },
+            {
+              "function": "set_lore",
+              "lore": [
+                [{"color":"gray","text":"附魔书放置在"},{"color":"gold","text":"主手"},{"color":"gray","text":"，需要附魔的物品放置在"},{"color":"gold","text":"副手"}],
+                [{"color":"gold","text":"右键"},{"color":"gray","text":"进行附魔"}]
+              ],
+              "mode": "append"
+            },
+            {
+              "function": "set_components",
+              "components": {
+                "consumable": {
+                  "animation": "none",
+                  "has_consume_particles": false,
+                  "sound": "block.enchantment_table.use"
+                },
+                "custom_data": {
+                  "item": "enchanted_book"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
